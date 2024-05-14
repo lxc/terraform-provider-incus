@@ -381,6 +381,7 @@ func (_ StorageVolumeModel) ComputedKeys() []string {
 	return []string{
 		"block.filesystem",
 		"block.mount_options",
+		"zfs.remove_snapshots",
 		"volatile.",
 	}
 }
