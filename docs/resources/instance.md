@@ -13,7 +13,10 @@ resource "incus_instance" "instance1" {
 
   config = {
     "boot.autostart" = true
-    "limits.cpu" = 2
+  }
+
+  limits = {
+    "cpu" = 2
   }
 }
 ```
@@ -119,6 +122,9 @@ resource "incus_instance" "instance2" {
 
 * `config` - *Optional* - Map of key/value pairs of
 	[instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
+
+* `limits` - *Optional* - Map of key/value pairs of 
+        [resource limit config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/#resource-limits), without the `limits.` prefix in the keys.
 
 * `project` - *Optional* - Name of the project where the instance will be spawned.
 
