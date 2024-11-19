@@ -1301,11 +1301,11 @@ func waitForState(ctx context.Context, refreshFunc retry.StateRefreshFunc, targe
 
 // isInstanceOperational determines if an instance is fully operational based
 // on its state. It returns true if the instance is running and the reported
-// process count is positive. Checking for a positive process count is esential
+// process count is positive. Checking for a positive process count is essential
 // for virtual machines, which can report this metric only if the Incus agent has
 // started and has established a connection to the Incus server.
 func isInstanceOperational(s api.InstanceState) bool {
-	return isInstanceRunning(s) && s.Pid > 0
+	return isInstanceRunning(s) && s.Processes > 0
 }
 
 // isInstanceRunning returns true if its status is either "Running" or "Ready".
