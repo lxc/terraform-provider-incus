@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/lxc/incus/v6/client"
+	incus "github.com/lxc/incus/v6/client"
 	incus_api "github.com/lxc/incus/v6/shared/api"
 	incus_config "github.com/lxc/incus/v6/shared/cliconfig"
 	incus_tls "github.com/lxc/incus/v6/shared/tls"
