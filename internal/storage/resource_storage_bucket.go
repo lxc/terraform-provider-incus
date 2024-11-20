@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -33,6 +34,7 @@ type StorageBucketModel struct {
 	Target      types.String `tfsdk:"target"`
 	Remote      types.String `tfsdk:"remote"`
 	Config      types.Map    `tfsdk:"config"`
+	SourceFile  types.String `tfsdk:"source_file"`
 
 	// Computed.
 	Location types.String `tfsdk:"location"`
@@ -110,6 +112,16 @@ func (r StorageBucketResource) Schema(ctx context.Context, req resource.SchemaRe
 				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			},
 
+			"source_file": schema.StringAttribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+
 			// Computed.
 
 			"location": schema.StringAttribute{
@@ -143,6 +155,16 @@ func (r StorageBucketResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	if !plan.SourceFile.IsNull() {
+		r.importStoragePoolBucket(ctx, resp, &plan)
+		return
+	} else {
+		r.createStoragePoolBucket(ctx, resp, &plan)
+		return
+	}
+}
+
+func (r StorageBucketResource) createStoragePoolBucket(ctx context.Context, resp *resource.CreateResponse, plan *StorageBucketModel) {
 	remote := plan.Remote.ValueString()
 	project := plan.Project.ValueString()
 	target := plan.Target.ValueString()
@@ -176,7 +198,50 @@ func (r StorageBucketResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Update Terraform state.
-	diags = r.SyncState(ctx, &resp.State, server, plan)
+	diags = r.SyncState(ctx, &resp.State, server, *plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r StorageBucketResource) importStoragePoolBucket(ctx context.Context, resp *resource.CreateResponse, plan *StorageBucketModel) {
+	remote := plan.Remote.ValueString()
+	project := plan.Project.ValueString()
+	target := plan.Target.ValueString()
+	sourceFile := plan.SourceFile.ValueString()
+	server, err := r.provider.InstanceServer(remote, project, target)
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+		return
+	}
+
+	poolName := plan.Pool.ValueString()
+	bucketName := plan.Name.ValueString()
+
+	file, err := os.Open(sourceFile)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to open source file %q", sourceFile), err.Error())
+		return
+	}
+	defer file.Close()
+
+	args := incus.StoragePoolBucketBackupArgs{
+		Name:       bucketName,
+		BackupFile: file,
+	}
+
+	opImport, err := server.CreateStoragePoolBucketFromBackup(poolName, args)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create storage bucket from file %q", bucketName), err.Error())
+		return
+	}
+
+	err = opImport.Wait()
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create storage bucket from file %q", bucketName), err.Error())
+		return
+	}
+
+	// Update Terraform state.
+	diags := r.SyncState(ctx, &resp.State, server, *plan)
 	resp.Diagnostics.Append(diags...)
 }
 
