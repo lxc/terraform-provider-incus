@@ -8,6 +8,7 @@ linters:
   enable:
     - godot
     - gofmt
+    - goimports
     - misspell
     - whitespace
     - gci
@@ -16,3 +17,6 @@ linters-settings:
     sections:
       - standard
       - default
+      - prefix(github.com/lxc/terraform-provider-incus)
+  goimports:
+    local-prefixes: github.com/lxc/terraform-provider-incus
