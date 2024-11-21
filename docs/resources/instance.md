@@ -89,12 +89,48 @@ resource "incus_instance" "instance2" {
 }
 ```
 
+## Example to create a new instance from an instance backup
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  source_file = "/path/to/backup.tar.gz"
+}
+```
+
+## Example to create a new instance from an instance backup with storage
+
+In order to provide the storage pool name for an instance, which is created
+from a backup exactly one `device` configuration of `type = "disk"` might be
+provided. The name of the pool is given as the `pool` attribute in
+`properties`. Additionally the property `path = "/"` is required.
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  source_file = "/path/to/backup.tar.gz"
+
+  device = {
+    name = "storage"
+    type = "disk"
+    properties = {
+      path = "/"
+      pool = "pool-name"
+    }
+  }
+}
+```
+
 ## Argument Reference
 
 * `name` - **Required** - Name of the instance.
 
 * `image` - *Optional* - Base image from which the instance will be created. Must
   specify [an image accessible from the provider remote](https://linuxcontainers.org/incus/docs/main/reference/image_servers/).
+
+* `source_file` - *Optional* - The souce backup file from which the instance should be restored. For handling of storage pool, see examples.
 
 * `source_instance` - *Optional* - The source instance from which the instance will be created. See reference below.
 
