@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dustinkirkland/golang-petname"
+	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/lxc/incus/v6/shared/api"
 
