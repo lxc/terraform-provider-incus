@@ -738,7 +738,7 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.IPv6 = types.StringNull()
 	m.MAC = types.StringNull()
 
-	// First there is an access_interface set, extract IPv4, IPv4, and
+	// First there is an access_interface set, extract IPv4, IPv6, and
 	// MAC addresses from it.
 	accIface, ok := instance.Config["user.access_interface"]
 	if ok {
@@ -1335,13 +1335,24 @@ func (s sortedInterfaces) Swap(i, j int) {
 }
 
 func (s sortedInterfaces) Less(i, j int) bool {
+	favorWithValue := func(a, b string) bool {
+		if a == "" && b == "" {
+			return false
+		}
+
+		if len(a) > 0 && len(b) > 0 {
+			return false
+		}
+		return true
+	}
+
 	// Favor those with a host interface name.
-	if s[i].HostName != s[j].HostName {
+	if favorWithValue(s[i].HostName, s[j].HostName) {
 		return s[i].HostName == ""
 	}
 
 	// Favor those with a MAC address.
-	if s[i].Hwaddr != s[j].Hwaddr {
+	if favorWithValue(s[i].Hwaddr, s[j].Hwaddr) {
 		return s[i].Hwaddr == ""
 	}
 
@@ -1369,8 +1380,8 @@ func (s sortedInterfaces) Less(i, j int) bool {
 	return false
 }
 
-// findAddresses returns looks for the most optimal interface on the
-// instance to return the IPv4, IPv6 and MAC address and interface name from.
+// findAddresses looks for the most optimal interface on the instance to return
+// the IPv4, IPv6 and MAC address and interface name from.
 func findAddresses(state *api.InstanceState) (string, string, string, string, bool) {
 	if len(state.Network) == 0 {
 		return "", "", "", "", false
