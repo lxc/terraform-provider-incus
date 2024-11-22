@@ -3,8 +3,10 @@ package storage
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -39,6 +41,7 @@ type StorageVolumeModel struct {
 	Remote       types.String `tfsdk:"remote"`
 	Config       types.Map    `tfsdk:"config"`
 	SourceVolume types.Object `tfsdk:"source_volume"`
+	SourceFile   types.String `tfsdk:"source_file"`
 
 	// Computed.
 	Location types.String `tfsdk:"location"`
@@ -159,6 +162,20 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.Object{
+					objectvalidator.ConflictsWith(path.MatchRoot("source_file")),
+				},
+			},
+
+			"source_file": schema.StringAttribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+					stringvalidator.ConflictsWith(path.MatchRoot("source_volume")),
+				},
 			},
 
 			// Computed.
@@ -196,6 +213,9 @@ func (r StorageVolumeResource) Create(ctx context.Context, req resource.CreateRe
 
 	if !plan.SourceVolume.IsNull() {
 		r.copyStoragePoolVolume(ctx, resp, &plan)
+		return
+	} else if !plan.SourceFile.IsNull() {
+		r.importStoragePoolVolume(ctx, resp, &plan)
 		return
 	} else {
 		r.createStoragePoolVolume(ctx, resp, &plan)
@@ -299,6 +319,56 @@ func (r StorageVolumeResource) copyStoragePoolVolume(ctx context.Context, resp *
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, dstServer, *plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r StorageVolumeResource) importStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel) {
+	remote := plan.Remote.ValueString()
+	project := plan.Project.ValueString()
+	target := plan.Target.ValueString()
+	sourceFile := plan.SourceFile.ValueString()
+	server, err := r.provider.InstanceServer(remote, project, target)
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+		return
+	}
+
+	poolName := plan.Pool.ValueString()
+	volName := plan.Name.ValueString()
+
+	file, err := os.Open(sourceFile)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to open source file %q", sourceFile), err.Error())
+		return
+	}
+	defer file.Close()
+
+	args := incus.StorageVolumeBackupArgs{
+		Name:       volName,
+		BackupFile: file,
+	}
+
+	var opImport incus.Operation
+
+	if strings.HasSuffix(file.Name(), ".iso") {
+		opImport, err = server.CreateStoragePoolVolumeFromISO(poolName, args)
+	} else {
+		opImport, err = server.CreateStoragePoolVolumeFromBackup(poolName, args)
+	}
+
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create storage volume from file %q", volName), err.Error())
+		return
+	}
+
+	err = opImport.Wait()
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create storage volume from file %q", volName), err.Error())
+		return
+	}
+
+	// Update Terraform state.
+	diags := r.SyncState(ctx, &resp.State, server, *plan)
 	resp.Diagnostics.Append(diags...)
 }
 
