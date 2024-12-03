@@ -272,6 +272,7 @@ func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource 
 		instance.NewInstanceSnapshotResource,
 		network.NewNetworkAclResource,
 		network.NewNetworkForwardResource,
+		network.NewNetworkIntegrationResource,
 		network.NewNetworkLBResource,
 		network.NewNetworkResource,
 		network.NewNetworkZoneRecordResource,
