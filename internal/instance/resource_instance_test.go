@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -857,6 +858,91 @@ func TestAccInstance_sourceInstanceWithSnapshot(t *testing.T) {
 	})
 }
 
+func TestAccInstance_sourceFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
+	sourceInstanceName := petname.Generate(2, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_sourceFileExportInstance(sourceInstanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", sourceInstanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "image", acctest.TestImage),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove instance. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccInstance_sourceFile(instanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "source_file", backupFile),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_sourceFileWithStorage(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
+	sourceInstanceName := petname.Generate(2, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_sourceFileExportInstance(sourceInstanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", sourceInstanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "image", acctest.TestImage),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove instance. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccInstance_sourceFileWithStorage(instanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "source_file", backupFile),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.name", "storage"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.type", "disk"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.path", "/"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.pool", "default"),
+				),
+			},
+		},
+	})
+}
+
 func testAccInstance_basic(name string, image string) string {
 	return fmt.Sprintf(`
 resource "incus_instance" "instance1" {
@@ -1478,4 +1564,52 @@ resource "incus_instance" "instance2" {
   }
 }
 	`, projectName, sourceInstanceName, snapshotName, instanceName, acctest.TestImage)
+}
+
+func testAccInstance_sourceFileExportInstance(sourceInstanceName, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%[1]s"
+  image = "%[2]s"
+
+  running = false
+}
+
+resource "null_resource" "export_instance1" {
+  provisioner "local-exec" {
+    command = "incus export ${incus_instance.instance1.name} %[3]s"
+  }
+}
+`, sourceInstanceName, acctest.TestImage, backupFile)
+}
+
+func testAccInstance_sourceFile(instanceName, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%[1]s"
+  source_file = "%[2]s"
+
+  running = false
+}
+`, instanceName, backupFile)
+}
+
+func testAccInstance_sourceFileWithStorage(instanceName, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%[1]s"
+  source_file = "%[2]s"
+
+  device {
+    name = "storage"
+    type = "disk"
+    properties = {
+      "path" = "/"
+      "pool" = "default"
+    }
+  }
+
+  running = true
+}
+`, instanceName, backupFile)
 }
