@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -23,30 +24,33 @@ import (
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
 
-// NetworkZoneModel resource data model that matches the schema.
-type NetworkZoneModel struct {
+// NetworkIntegrationModel resource data model that matches the schema.
+type NetworkIntegrationModel struct {
 	Name        types.String `tfsdk:"name"`
+	Type        types.String `tfsdk:"type"`
 	Description types.String `tfsdk:"description"`
 	Project     types.String `tfsdk:"project"`
 	Remote      types.String `tfsdk:"remote"`
 	Config      types.Map    `tfsdk:"config"`
 }
 
-// NetworkZoneResource represent Incus network zone resource.
-type NetworkZoneResource struct {
+// NetworkIntegrationResource represent network integration resource.
+type NetworkIntegrationResource struct {
 	provider *provider_config.IncusProviderConfig
 }
 
-// NewNetworkZoneResource returns a new network zone resource.
-func NewNetworkZoneResource() resource.Resource {
-	return &NetworkZoneResource{}
+// NewNetworkIntegrationResource returns a new network integration resource.
+func NewNetworkIntegrationResource() resource.Resource {
+	return &NetworkIntegrationResource{}
 }
 
-func (r NetworkZoneResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = fmt.Sprintf("%s_network_zone", req.ProviderTypeName)
+// Metadata for NetworkIntegrationResource.
+func (r NetworkIntegrationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = fmt.Sprintf("%s_network_integration", req.ProviderTypeName)
 }
 
-func (r NetworkZoneResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+// Schema for NetworkIntegrationResource.
+func (r NetworkIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
@@ -54,12 +58,32 @@ func (r NetworkZoneResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+
+			"type": schema.StringAttribute{
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("ovn"),
+				},
 			},
 
 			"description": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(""),
+			},
+
+			"remote": schema.StringAttribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 
 			"project": schema.StringAttribute{
@@ -72,23 +96,17 @@ func (r NetworkZoneResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 
-			"remote": schema.StringAttribute{
-				Optional: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-
 			"config": schema.MapAttribute{
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
+				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			},
 		},
 	}
 }
 
-func (r *NetworkZoneResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *NetworkIntegrationResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := req.ProviderData
 	if data == nil {
 		return
@@ -97,14 +115,13 @@ func (r *NetworkZoneResource) Configure(_ context.Context, req resource.Configur
 	provider, ok := data.(*provider_config.IncusProviderConfig)
 	if !ok {
 		resp.Diagnostics.Append(errors.NewProviderDataTypeError(req.ProviderData))
-		return
 	}
 
 	r.provider = provider
 }
 
-func (r NetworkZoneResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan NetworkZoneModel
+func (r NetworkIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan NetworkIntegrationModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -120,105 +137,95 @@ func (r NetworkZoneResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	// Convert network zone config to map.
+	config, diag := common.ToConfigMap(ctx, plan.Config)
+	resp.Diagnostics.Append(diag...)
+
+	networkIntegration := api.NetworkIntegrationsPost{
+		Name: plan.Name.ValueString(),
+		Type: plan.Type.ValueString(),
+		NetworkIntegrationPut: api.NetworkIntegrationPut{
+			Description: plan.Description.ValueString(),
+			Config:      config,
+		},
+	}
+
+	err = server.CreateNetworkIntegration(networkIntegration)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create network integration %q", networkIntegration.Name), err.Error())
+		return
+	}
+
+	diags = r.SyncState(ctx, &resp.State, server, plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r NetworkIntegrationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state NetworkIntegrationModel
+
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	remote := state.Remote.ValueString()
+	project := state.Project.ValueString()
+	server, err := r.provider.InstanceServer(remote, project, "")
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+	}
+
+	diags = r.SyncState(ctx, &resp.State, server, state)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r NetworkIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan NetworkIntegrationModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	remote := plan.Remote.ValueString()
+	project := plan.Project.ValueString()
+	server, err := r.provider.InstanceServer(remote, project, "")
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+		return
+	}
+
+	name := plan.Name.ValueString()
+
 	config, diag := common.ToConfigMap(ctx, plan.Config)
 	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	zoneName := plan.Name.ValueString()
-	zoneReq := api.NetworkZonesPost{
-		Name: zoneName,
-		NetworkZonePut: api.NetworkZonePut{
-			Description: plan.Description.ValueString(),
-			Config:      config,
-		},
-	}
-
-	err = server.CreateNetworkZone(zoneReq)
+	_, etag, err := server.GetNetworkIntegration(name)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create network zone %q", zoneName), err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing network integration %q", name), err.Error())
 		return
 	}
 
-	// Update Terraform state.
-	diags = r.SyncState(ctx, &resp.State, server, plan)
-	resp.Diagnostics.Append(diags...)
-}
-
-func (r NetworkZoneResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state NetworkZoneModel
-
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	remote := state.Remote.ValueString()
-	project := state.Project.ValueString()
-	server, err := r.provider.InstanceServer(remote, project, "")
-	if err != nil {
-		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
-		return
-	}
-
-	// Update Terraform state.
-	diags = r.SyncState(ctx, &resp.State, server, state)
-	resp.Diagnostics.Append(diags...)
-}
-
-func (r NetworkZoneResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan NetworkZoneModel
-
-	// Fetch resource model from Terraform plan.
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	remote := plan.Remote.ValueString()
-	project := plan.Project.ValueString()
-	server, err := r.provider.InstanceServer(remote, project, "")
-	if err != nil {
-		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
-		return
-	}
-
-	zoneName := plan.Name.ValueString()
-	_, etag, err := server.GetNetworkZone(zoneName)
-	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing network zone %q", zoneName), err.Error())
-		return
-	}
-
-	config, diags := common.ToConfigMap(ctx, plan.Config)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Update network zone.
-	zoneReq := api.NetworkZonePut{
+	networkIntegrationRequest := api.NetworkIntegrationPut{
 		Description: plan.Description.ValueString(),
 		Config:      config,
 	}
 
-	err = server.UpdateNetworkZone(zoneName, zoneReq, etag)
+	err = server.UpdateNetworkIntegration(name, networkIntegrationRequest, etag)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to update network zone %q", zoneName), err.Error())
-		return
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to update network integration %q", name), err.Error())
 	}
 
-	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r NetworkZoneResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state NetworkZoneModel
+func (r NetworkIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state NetworkIntegrationModel
 
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -234,56 +241,42 @@ func (r NetworkZoneResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	zoneName := state.Name.ValueString()
-	err = server.DeleteNetworkZone(zoneName)
+	name := state.Name.ValueString()
+
+	err = server.DeleteNetworkIntegration(name)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to remove network zone %q", zoneName), err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to remove network integration %q", name), err.Error())
 	}
 }
 
-func (r NetworkZoneResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	meta := common.ImportMetadata{
-		ResourceName:   "network_zone",
-		RequiredFields: []string{"name"},
-	}
+// SyncState fetches the server's current state for a network integration and updates
+// the provided model. It then applies this updated model as the new state
+// in Terraform.
+func (r NetworkIntegrationResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m NetworkIntegrationModel) diag.Diagnostics {
+	var respDiags diag.Diagnostics
 
-	fields, diag := meta.ParseImportID(req.ID)
-	if diag != nil {
-		resp.Diagnostics.Append(diag)
-		return
-	}
-
-	for k, v := range fields {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(k), v)...)
-	}
-}
-
-// SyncState fetches the server's current state for a network zone and
-// updates the provided model. It then applies this updated model as the
-// new state in Terraform.
-func (r NetworkZoneResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m NetworkZoneModel) diag.Diagnostics {
-	zoneName := m.Name.ValueString()
-	zone, _, err := server.GetNetworkZone(zoneName)
+	networkIntegrationName := m.Name.ValueString()
+	networkIntegration, _, err := server.GetNetworkIntegration(networkIntegrationName)
 	if err != nil {
 		if errors.IsNotFoundError(err) {
 			tfState.RemoveResource(ctx)
 			return nil
 		}
 
-		return diag.Diagnostics{diag.NewErrorDiagnostic(
-			fmt.Sprintf("Failed to retrieve network zone %q", zoneName), err.Error(),
-		)}
+		respDiags.AddError(fmt.Sprintf("Failed to retrieve network integration %q", networkIntegrationName), err.Error())
+		return respDiags
 	}
 
-	// Convert config state into schema type.
-	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(zone.Config), m.Config)
-	if diags.HasError() {
-		return diags
-	}
+	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(networkIntegration.Config), m.Config)
+	respDiags.Append(diags...)
 
-	m.Name = types.StringValue(zone.Name)
-	m.Description = types.StringValue(zone.Description)
+	m.Description = types.StringValue(networkIntegration.Description)
+	m.Type = types.StringValue(networkIntegration.Type)
 	m.Config = config
+
+	if respDiags.HasError() {
+		return respDiags
+	}
 
 	return tfState.Set(ctx, &m)
 }

@@ -16,6 +16,16 @@ resource "incus_storage_bucket" "bucket1" {
 }
 ```
 
+## Example to create bucket from backup file 
+
+```hcl
+resource "incus_storage_bucket" "bucket_from_backup" {
+ name        = "restored-bucket"
+ pool        = "default"
+ source_file = "/path/to/backup.tar.gz"
+}
+```
+
 ## Argument Reference
 
 * `name` - **Required** - Name of the storage bucket.
@@ -34,6 +44,8 @@ resource "incus_storage_bucket" "bucket1" {
   not provided, the provider's default remote will be used.
 
 * `target` - *Optional* - Specify a target node in a cluster.
+
+* `source_file` - *Optional* - Path to a backup file from which the bucket will be created.
 
 
 ## Attribute Reference

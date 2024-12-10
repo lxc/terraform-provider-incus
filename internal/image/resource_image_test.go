@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dustinkirkland/golang-petname"
+	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/lxc/terraform-provider-incus/internal/acctest"
@@ -342,7 +342,7 @@ resource "incus_image" "img1vm" {
   source_image = {
     remote       = "images"
     name         = "alpine/edge"
-  type          = "virtual-machine"
+    type         = "virtual-machine"
     copy_aliases = true
   }
 }
@@ -471,8 +471,8 @@ resource "incus_instance" "inst" {
     name = "root"
     type = "disk"
     properties = {
-	  pool = "default"
-	  path = "/"
+      pool = "default"
+      path = "/"
     }
   }
 }
@@ -491,7 +491,7 @@ resource "incus_image" "img1" {
   source_image = {
     remote       = "images"
     name         = "alpine/edge"
-	architecture = "%s"
+    architecture = "%s"
   }
 }
 	`, project, architecture)
@@ -513,8 +513,8 @@ func testAccImage_sourceInstance(projectName, instanceName string) string {
 resource "incus_project" "project1" {
   name = "%[1]s"
   config = {
-	"features.images"   = false
-	"features.profiles" = false
+    "features.images"   = false
+    "features.profiles" = false
   }
 }
 
@@ -542,8 +542,8 @@ func testAccImage_sourceInstanceWithSnapshot(projectName, instanceName string) s
 resource "incus_project" "project1" {
   name = "%[1]s"
   config = {
-	"features.images"   = false
-	"features.profiles" = false
+    "features.images"   = false
+    "features.profiles" = false
   }
 }
 

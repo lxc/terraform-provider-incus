@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
 	"github.com/lxc/incus/v6/shared/api"
+
 	"github.com/lxc/terraform-provider-incus/internal/errors"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )

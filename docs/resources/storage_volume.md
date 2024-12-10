@@ -26,6 +26,16 @@ resource "incus_storage_volume" "volume1_copy" {
 }
 ```
 
+## Example to create volume from backup file 
+
+```hcl
+resource "incus_storage_volume" "volume_from_backup" {
+ name        = "restored-volume"
+ pool        = "default"
+ source_file = "/path/to/volume.backup"
+}
+```
+
 ## Argument Reference
 
 * `name` - **Required** - Name of the storage volume.
@@ -51,6 +61,8 @@ resource "incus_storage_volume" "volume1_copy" {
 * `target` - *Optional* - Specify a target node in a cluster.
 
 * `source_volume` - *Optional* - The source volume from which the volume will be created. See reference below.
+
+* `source_file` - *Optional* - Path to a backup file from which the volume will be created.
 
 The `source_volume` block supports:
 
