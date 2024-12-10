@@ -45,18 +45,14 @@ func testAccNetworkPeer_basic() string {
 
 resource "incus_network_peer" "lan0_lan1"{
 	name = "lab0-lan1"
-	network = "lan0"
-	target_network = "lan1"
-
-	depends_on = ["incus_network.lan0", "incus_network.lan1"]
+	network = incus_network.lan0.name
+	target_network = incus_network.lan1.name
 }
 
 resource "incus_network_peer" "lan1_lan0"{
 	name = "lab1-lan0"
-	network = "lan1"
-	target_network = "lan0"
-
-	depends_on = ["incus_network.lan0", "incus_network.lan1"]
+	network = incus_network.lan1.name
+	target_network = incus_network.lan0.name
 }
 	`,
 		testAccNetworkPeer_ovnbr(),
@@ -103,22 +99,18 @@ func testAccNetworkPeer_acrossProjects() string {
 
 resource "incus_network_peer" "lan0_lan1"{
 	name = "lab0-lan1"
-	project = "projectA"
-	network = "lan0"
-	target_project = "projectB"
-	target_network = "lan1"
-
-	depends_on = ["incus_network.projectA_lan0", "incus_network.projectB_lan1"]
+	project = incus_project.projectA.name
+	network = incus_network.projectA_lan0.name
+	target_project = incus_project.projectB.name
+	target_network = incus_network.projectB_lan1.name
 }
 
 resource "incus_network_peer" "lan1_lan0"{
 	name = "lab1-lan0"
-	project = "projectB"
-	network = "lan1"
-	target_project = "projectA"
-	target_network = "lan0"
-
-	depends_on = ["incus_network.projectA_lan0", "incus_network.projectB_lan1"]
+	project = incus_project.projectB.name
+	network = incus_network.projectB_lan1.name
+	target_project = incus_project.projectA.name
+	target_network = incus_network.projectA_lan0.name
 }
 	`,
 		testAccNetworkPeer_ovnbr(),
@@ -170,8 +162,6 @@ resource "incus_network" "%s" {
     "ipv6.nat"     = "false"
     "network" = incus_network.ovnbr.name
   }
-
-  depends_on = ["incus_network.ovnbr"]
 }
 `, network, network, ipv4)
 }
@@ -181,7 +171,7 @@ func testAccNetworkPeer_projectNetwork(project string, network string, ipv4 stri
 resource "incus_network" "%s_%s" {
   name = "%s"
   type = "ovn"
-  project = "%s"
+  project = incus_project.%s.name
 
   config = {
     "ipv4.address" = "%s/24"
@@ -190,8 +180,6 @@ resource "incus_network" "%s_%s" {
     "ipv6.nat"     = "false"
     "network" = incus_network.ovnbr.name
   }
-
-  depends_on = ["incus_network.ovnbr", "incus_project.%s"]
 }
-`, project, network, network, project, ipv4, project)
+`, project, network, network, project, ipv4)
 }
