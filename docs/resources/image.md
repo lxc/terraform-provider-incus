@@ -21,17 +21,27 @@ resource "incus_instance" "test1" {
 
 ## Argument Reference
 
+* `source_file` - *Optional* - The image file from the local file system from which the image will be created. See reference below.
+
 * `source_image` - *Optional* - The source image from which the image will be created. See reference below.
 
 * `source_instance` - *Optional* - The source instance from which the image will be created. See reference below.
 
 * `aliases` - *Optional* - A list of aliases to assign to the image after
-	pulling.
+  pulling.
 
 * `project` - *Optional* - Name of the project where the image will be stored.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
+
+The `source_file` block supports:
+
+* `data_path` - **Required** - Either the path of an [unified image](https://linuxcontainers.org/incus/docs/main/reference/image_format/#image-format-unified)
+  or the rootfs tarball of a [split image](https://linuxcontainers.org/incus/docs/main/reference/image_format/#image-format-split), depending on
+  `metadata_path` being provided or not.
+
+* `metadata_path` - *Optional* - Path to the metadata tarball of a [split image](https://linuxcontainers.org/incus/docs/main/reference/image_format/#image-format-split).
 
 The `source_image` block supports:
 

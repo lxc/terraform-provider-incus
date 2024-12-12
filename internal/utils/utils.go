@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -110,4 +111,14 @@ func DiffSlices[T comparable](sliceA []T, sliceB []T) ([]T, []T) {
 func ToPrettyJSON(v any) string {
 	bytes, _ := json.MarshalIndent(v, "", "    ")
 	return string(bytes)
+}
+
+// IsDir returns true if the given path is a directory.
+func IsDir(name string) bool {
+	stat, err := os.Stat(name)
+	if err != nil {
+		return false
+	}
+
+	return stat.IsDir()
 }
