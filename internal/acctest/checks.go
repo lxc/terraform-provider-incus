@@ -2,6 +2,7 @@ package acctest
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -69,6 +70,10 @@ func PreCheckAPIExtensions(t *testing.T, extensions ...string) {
 // PreCheckVirtualization skips the test if the Incus server does not
 // support virtualization.
 func PreCheckVirtualization(t *testing.T) {
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skipf("Test %q skipped. Virtualization tests can't run in Github Actions.", t.Name())
+	}
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
