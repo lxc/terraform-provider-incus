@@ -556,7 +556,10 @@ func TestAccInstance_fileUploadContent_VM(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckVirtualization(t)
+		},
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
