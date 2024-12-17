@@ -2,6 +2,7 @@ package image_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -324,6 +325,99 @@ func TestAccImage_sourceInstanceWithSnapshot(t *testing.T) {
 	})
 }
 
+func TestAccImage_sourceFileSplitImage(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetMetadata := filepath.Join(tmpDir, `alpine-edge.img`)
+	targetData := targetMetadata + ".root"
+
+	alias1 := petname.Generate(2, "-")
+	alias2 := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckAPIExtensions(t, "image_create_aliases")
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSourceFileSplitImage_exportImage(targetMetadata),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_image.img1", "source_image.remote", "images"),
+					resource.TestCheckResourceAttr("incus_image.img1", "source_image.name", "alpine/edge"),
+					resource.TestCheckResourceAttr("incus_image.img1", "source_image.copy_aliases", "true"),
+					resource.TestCheckResourceAttr("incus_image.img1", "copied_aliases.#", "4"),
+					resource.TestCheckResourceAttrSet("null_resource.export_img1", "id"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove image. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccSourceFileSplitImage_fromFile(targetData, targetMetadata, alias1, alias2),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.data_path", targetData),
+					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.metadata_path", targetMetadata),
+					resource.TestCheckResourceAttr("incus_image.from_file", "aliases.#", "2"),
+					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias1),
+					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias2),
+					resource.TestCheckResourceAttr("incus_image.from_file", "copied_aliases.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccImage_sourceFileUnifiedImage(t *testing.T) {
+	name := petname.Generate(2, "-")
+	tmpDir := t.TempDir()
+	targetData := filepath.Join(tmpDir, name)
+
+	alias1 := petname.Generate(2, "-")
+	alias2 := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSourceFileUnifiedImage_exportImage(name, targetData),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", name),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "image", "images:alpine/edge"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "container"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+					resource.TestCheckResourceAttrSet("null_resource.publish_instance1", "id"),
+					resource.TestCheckResourceAttrSet("null_resource.export_instance1_image", "id"),
+					resource.TestCheckResourceAttrSet("null_resource.delete_instance1_image", "id"),
+				),
+			},
+			{
+				Config: testAccSourceFileUnifiedImage_fromFile(targetData, alias1, alias2),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.data_path", targetData+".tar.gz"),
+					resource.TestCheckResourceAttr("incus_image.from_file", "aliases.#", "2"),
+					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias1),
+					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias2),
+					resource.TestCheckResourceAttr("incus_image.from_file", "copied_aliases.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func testAccImage_basic() string {
 	return `
 resource "incus_image" "img1" {
@@ -571,4 +665,84 @@ resource "incus_image" "img1" {
   }
 }
 	`, projectName, instanceName, acctest.TestImage)
+}
+
+func testAccSourceFileSplitImage_exportImage(target string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "img1" {
+  source_image = {
+    remote       = "images"
+    name         = "alpine/edge"
+    copy_aliases = true
+  }
+}
+
+resource "null_resource" "export_img1" {
+  provisioner "local-exec" {
+    command = "incus image export ${incus_image.img1.fingerprint} %[1]s"
+  }
+}
+`, target)
+}
+
+func testAccSourceFileSplitImage_fromFile(targetData, targetMetadata string, aliases ...string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "from_file" {
+  source_file = {
+    data_path     = "%[1]s"
+    metadata_path = "%[2]s"
+  }
+  aliases = ["%[3]s"]
+}
+`, targetData, targetMetadata, strings.Join(aliases, `","`))
+}
+
+func testAccSourceFileUnifiedImage_exportImage(name, targetData string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name    = "%[1]s"
+  image   = "images:alpine/edge"
+  type    = "container"
+  running = false
+}
+
+resource "null_resource" "publish_instance1" {
+  depends_on = [
+    incus_instance.instance1
+  ]
+  provisioner "local-exec" {
+    command = "incus publish --alias %[1]s %[1]s"
+  }
+}
+
+resource "null_resource" "export_instance1_image" {
+  depends_on = [
+    null_resource.publish_instance1
+  ]
+  provisioner "local-exec" {
+    command = "incus image export %[1]s %[2]s"
+  }
+}
+
+resource "null_resource" "delete_instance1_image" {
+  depends_on = [
+    null_resource.export_instance1_image
+  ]
+  provisioner "local-exec" {
+    command = "incus image delete %[1]s"
+  }
+}
+`, name, targetData)
+}
+
+func testAccSourceFileUnifiedImage_fromFile(targetData string, aliases ...string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "from_file" {
+  source_file = {
+    data_path = "%[1]s.tar.gz"
+  }
+  aliases = ["%[2]s"]
+}
+
+`, targetData, strings.Join(aliases, `","`))
 }
