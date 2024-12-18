@@ -347,7 +347,6 @@ func (r StorageBucketResource) ImportState(ctx context.Context, req resource.Imp
 	}
 
 	fields, diags := meta.ParseImportID(req.ID)
-	print("fields: %v", fields)
 	if diags != nil {
 		resp.Diagnostics.Append(diags)
 		return
