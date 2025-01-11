@@ -38,15 +38,14 @@ provider "incus" {
   accept_remote_certificate    = true
 
   remote {
-    name    = "incus-server-1"
-    scheme  = "https"
-    address = "10.1.1.8"
-    token   = "token"
+    name    = "local"
+    scheme  = "unix"
+    address = ""
     default = true
   }
 
   remote {
-    name    = "incus-server-2"
+    name    = "incus-remote"
     scheme  = "https"
     address = "10.1.2.8"
     token   = "token"
@@ -77,7 +76,9 @@ The following arguments are supported:
 
 The `remote` block supports:
 
-* `address` - *Optional* - The address of the Incus remote.
+* `address` - *Optional* - The address of the Incus remote host when `schema` is 
+  set to `https`. If `schema` is `unix` this will be the path to the local unix 
+  socket, or leaving it as an empty string will use the default socket path.
 
 * `default` - *Optional* - Whether this should be the default remote.
 	This remote will then be used when one is not specified in a resource.
