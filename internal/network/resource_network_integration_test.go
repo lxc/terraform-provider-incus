@@ -95,24 +95,23 @@ func TestAccNetworkIntegration_withInvalidType(t *testing.T) {
 	})
 }
 
-// Waiting for https://github.com/lxc/terraform-provider-incus/issues/123
-// func TestAccNetworkIntegration_attach(t *testing.T) {
-// 	resource.Test(t, resource.TestCase{
-// 		PreCheck: func() {
-// 			acctest.PreCheck(t)
-// 			acctest.PreCheckAPIExtensions(t, "network_integrations")
-// 		},
-// 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-// 		Steps: []resource.TestStep{
-// 			{
-// 				Config: testAccNetworkIntegration_attach(),
-// 				Check: resource.ComposeTestCheckFunc(
-// 					resource.TestCheckResourceAttr("incus_network_integration.test", "name", "test"),
-// 				),
-// 			},
-// 		},
-// 	})
-// }
+func TestAccNetworkIntegration_attach(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckAPIExtensions(t, "network_integrations")
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccNetworkIntegration_attach(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_network_integration.test", "name", "test"),
+				),
+			},
+		},
+	})
+}
 
 func testAccNetworkIntegration_basic() string {
 	return `
@@ -154,15 +153,14 @@ resource "incus_network_integration" "test" {
 `, networkIntegrationType)
 }
 
-// Waiting for https://github.com/lxc/terraform-provider-incus/issues/123
-// func testAccNetworkIntegration_attach() string {
-// 	networkIntegrationRes := `
-// resource "incus_network_peer" "test" {
-//   name               = "ovn-lan1"
-//   network            = incus_network.ovn.name
-//   target_integration = incus_network_integration.test.name
-//   type               = "ovn"
-// }
-// `
-// 	return fmt.Sprintf("%s\n%s\n%s", ovnNetworkResource(), testAccNetworkIntegration_basic(), networkIntegrationRes)
-// }
+func testAccNetworkIntegration_attach() string {
+	networkIntegrationRes := `
+resource "incus_network_peer" "test" {
+  name               = "ovn-lan1"
+  network            = incus_network.ovn.name
+  target_integration = incus_network_integration.test.name
+  type               = "ovn"
+}
+`
+	return fmt.Sprintf("%s\n%s\n%s", ovnNetworkResource(), testAccNetworkIntegration_basic(), networkIntegrationRes)
+}
