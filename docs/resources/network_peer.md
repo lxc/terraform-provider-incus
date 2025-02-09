@@ -12,7 +12,7 @@ in the official Incus documentation.
 ## Example Usage
 
 ```hcl
-resource "incus_network" "network1" {
+resource "incus_network" "lan0" {
   name = "lan0"
   type = "ovn"
 
@@ -21,7 +21,7 @@ resource "incus_network" "network1" {
   }
 }
 
-resource "incus_network" "network2" {
+resource "incus_network" "lan1" {
   name = "lan1"
   type = "ovn"
 
@@ -29,22 +29,23 @@ resource "incus_network" "network2" {
     # ...
   }
 }
+
 resource "incus_network_peer" "lan0_lan1"{
-    name = "lab0-lan1"
-    description = "A meaningful description"
-    network = "lan0"
-    project = "default"
-    target_network = "lan1"
-    target_project = "default"
+  name = "lab0-lan1"
+  description = "A meaningful description"
+  network = incus_network.lan0.name
+  project = "default"
+  target_network = incus_network.lan1.name
+  target_project = "default"
 }
 
 resource "incus_network_peer" "lan1_lan0"{
-    name = "lab1-lan0"
-    description = "A meaningful description"
-    network = "lan1"
-    project = "default"
-    target_network = "lan0"
-    target_project = "default"
+  name = "lab1-lan0"
+  description = "A meaningful description"
+  network = incus_network.lan1.name
+  project = "default"
+  target_network = incus_network.lan0.name
+  target_project = "default"
 }
 ```
 
