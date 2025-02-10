@@ -8,19 +8,19 @@ require (
 	github.com/hashicorp/terraform-plugin-framework v1.13.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.16.0
 	github.com/hashicorp/terraform-plugin-go v0.26.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.35.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.0
 	github.com/hashicorp/terraform-plugin-testing v1.11.0
 	github.com/lxc/incus/v6 v6.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/sys v0.29.0
+	golang.org/x/sys v0.30.0
 )
 
 require (
 	github.com/ProtonMail/go-crypto v1.1.5 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/cloudflare/circl v1.5.0 // indirect
+	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
@@ -73,18 +73,18 @@ require (
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/term v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/tools v0.29.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250207221924-e9438ea467c6 // indirect
 	google.golang.org/grpc v1.70.0 // indirect
-	google.golang.org/protobuf v1.36.4 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
