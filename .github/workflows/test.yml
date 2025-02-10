@@ -16,7 +16,7 @@ permissions:
 name: Test
 jobs:
   acceptance-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -89,7 +89,7 @@ jobs:
           make test
 
   build-platforms:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +111,7 @@ jobs:
           args: build --snapshot
 
   check-lint:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
