@@ -43,6 +43,7 @@ resource "incus_network_peer" "this" {
     name               = "ovn-peer"
     network            = incus_network.default.name
     target_integration = incus_network_integration.this.name
+    type               = "remote"
 }
 ```
 
