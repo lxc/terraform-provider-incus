@@ -154,6 +154,11 @@ resource "incus_network_integration" "test" {
 }
 
 func testAccNetworkIntegration_attach() string {
+	networkIntegrationConfig := map[string]string{
+		"ovn.northbound_connection": "unix:/var/run/ovn/ovn_ic_nb_db.sock",
+		"ovn.southbound_connection": "unix:/var/run/ovn/ovn_ic_sb_db.sock",
+	}
+
 	networkIntegrationRes := `
 resource "incus_network_peer" "test" {
   name               = "ovn-lan1"
@@ -162,5 +167,5 @@ resource "incus_network_peer" "test" {
   type               = "remote"
 }
 `
-	return fmt.Sprintf("%s\n%s\n%s", ovnNetworkResource(), testAccNetworkIntegration_basic(), networkIntegrationRes)
+	return fmt.Sprintf("%s\n%s\n%s", ovnNetworkResource(), testAccNetworkIntegration_withConfig(networkIntegrationConfig), networkIntegrationRes)
 }
