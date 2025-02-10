@@ -69,12 +69,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes \
             ovn-host \
-            ovn-central
+            ovn-central \
+            ovn-ic \
+            ovn-ic-db
 
           sudo ovs-vsctl set open_vswitch . \
             external_ids:ovn-remote=unix:/var/run/ovn/ovnsb_db.sock \
             external_ids:ovn-encap-type=geneve \
             external_ids:ovn-encap-ip=127.0.0.1
+
+          sudo ovn-nbctl set NB_Global . \
+            name=region \
+            options:ic-route-adv=true \
+            options:ic-route-learn=true
+          sudo ovs-vsctl set open_vswitch . external_ids:ovn-is-interconn=true
 
           sudo systemctl restart incus
 
