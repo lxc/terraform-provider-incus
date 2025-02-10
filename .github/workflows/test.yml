@@ -21,8 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         go-version:
-          - "1.21"
-          - "1.22"
+          - oldstable
+          - stable
         incus-version:
           - daily
           - stable
@@ -94,8 +94,8 @@ jobs:
       fail-fast: false
       matrix:
         go-version:
-          - "1.21"
-          - "1.22"
+          - oldstable
+          - stable
 
     steps:
       - uses: actions/checkout@v4
@@ -116,8 +116,8 @@ jobs:
       fail-fast: false
       matrix:
         go-version:
-          - "1.21"
-          - "1.22"
+          - oldstable
+          - stable
 
     steps:
       - uses: actions/checkout@v4
