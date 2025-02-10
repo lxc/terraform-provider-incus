@@ -159,7 +159,7 @@ resource "incus_network_peer" "test" {
   name               = "ovn-lan1"
   network            = incus_network.ovn.name
   target_integration = incus_network_integration.test.name
-  type               = "ovn"
+  type               = "remote"
 }
 `
 	return fmt.Sprintf("%s\n%s\n%s", ovnNetworkResource(), testAccNetworkIntegration_basic(), networkIntegrationRes)
