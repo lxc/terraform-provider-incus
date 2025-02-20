@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -120,6 +121,8 @@ func (r NetworkZoneRecordResource) Schema(_ context.Context, _ resource.SchemaRe
 
 						"ttl": schema.Int64Attribute{
 							Optional:    true,
+							Computed:    true,
+							Default:     int64default.StaticInt64(300),
 							Description: "Record entry TTL",
 							Validators: []validator.Int64{
 								int64validator.AtLeast(1),
