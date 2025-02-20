@@ -351,6 +351,7 @@ func (_ NetworkModel) ComputedKeys() []string {
 		"ipv4.nat",
 		"ipv6.address",
 		"ipv6.nat",
+		"network",
 		"volatile.",
 	}
 }
