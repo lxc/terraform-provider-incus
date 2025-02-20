@@ -121,6 +121,8 @@ func (r IncusNetworkLBResource) Schema(_ context.Context, _ resource.SchemaReque
 
 						"target_port": schema.StringAttribute{
 							Optional:    true,
+							Computed:    true,
+							Default:     stringdefault.StaticString(""),
 							Description: "LB backend target port",
 						},
 					},
@@ -133,6 +135,8 @@ func (r IncusNetworkLBResource) Schema(_ context.Context, _ resource.SchemaReque
 					Attributes: map[string]schema.Attribute{
 						"description": schema.StringAttribute{
 							Optional:    true,
+							Computed:    true,
+							Default:     stringdefault.StaticString(""),
 							Description: "Port description",
 						},
 
