@@ -412,6 +412,11 @@ func determineIncusDir() (string, error) {
 			return incusDir, nil
 		}
 
+		userSocketPath := filepath.Join(incusDir, "unix.socket.user")
+		if utils.IsSocketWritable(userSocketPath) {
+			return incusDir, nil
+		}
+
 		return "", fmt.Errorf("Environment variable INCUS_DIR points to an Incus directory that does not contain a writable unix socket")
 	}
 
