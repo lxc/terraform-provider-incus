@@ -55,7 +55,7 @@ The `source_image` block supports:
 * `architecture` - *Optional* - The image architecture (e.g. x86_64, aarch64). See [Architectures](https://linuxcontainers.org/incus/docs/main/architectures/) for all possible values.
 
 * `copy_aliases` - *Optional* - Whether to copy the aliases of the image from
-  the remote. Valid values are `true` and `false`. Defaults to `true`.
+  the remote. Valid values are `true` and `false`.
 
 The `source_instance` block supports:
 
@@ -77,3 +77,4 @@ The following attributes are exported:
 ## Notes
 
 * See the Incus [documentation](https://linuxcontainers.org/incus/docs/main/howto/images_remote) for more info on default image remotes.
+
