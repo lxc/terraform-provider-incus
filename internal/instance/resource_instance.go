@@ -45,7 +45,7 @@ type InstanceModel struct {
 	Image          types.String `tfsdk:"image"`
 	Ephemeral      types.Bool   `tfsdk:"ephemeral"`
 	Running        types.Bool   `tfsdk:"running"`
-	WaitForNetwork types.Bool   `tfsdk:"wait_for_network"`
+	WaitForConfigs types.Set    `tfsdk:"wait_for"`
 	Profiles       types.List   `tfsdk:"profiles"`
 	Devices        types.Set    `tfsdk:"device"`
 	Files          types.Set    `tfsdk:"file"`
@@ -63,10 +63,44 @@ type InstanceModel struct {
 	Status types.String `tfsdk:"status"`
 }
 
+func (m InstanceModel) IsContainer() bool {
+	return m.Type.ValueString() == "container"
+}
+
+func (m InstanceModel) IsVirtualMachine() bool {
+	return m.Type.ValueString() == "virtual-machine"
+}
+
 type SourceInstanceModel struct {
 	Project  types.String `tfsdk:"project"`
 	Name     types.String `tfsdk:"name"`
 	Snapshot types.String `tfsdk:"snapshot"`
+}
+
+type WaitForModel struct {
+	Type  types.String `tfsdk:"type"`
+	Delay types.String `tfsdk:"delay"`
+	Nic   types.String `tfsdk:"nic"`
+}
+
+func (m WaitForModel) IsAgent() bool {
+	return m.Type.ValueString() == "agent"
+}
+
+func (m WaitForModel) IsDelay() bool {
+	return m.Type.ValueString() == "delay"
+}
+
+func (m WaitForModel) IsIPv4() bool {
+	return m.Type.ValueString() == "ipv4"
+}
+
+func (m WaitForModel) IsIPv6() bool {
+	return m.Type.ValueString() == "ipv6"
+}
+
+func (m WaitForModel) IsReady() bool {
+	return m.Type.ValueString() == "ready"
 }
 
 // InstanceResource represent Incus instance resource.
@@ -128,12 +162,6 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 
 			"running": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				Default:  booldefault.StaticBool(true),
-			},
-
-			"wait_for_network": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
 				Default:  booldefault.StaticBool(true),
@@ -237,6 +265,26 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 
 		Blocks: map[string]schema.Block{
+			"wait_for": schema.SetNestedBlock{
+				Description: "Wait for instance to be ready",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{
+							Required: true,
+							Validators: []validator.String{
+								stringvalidator.OneOf("agent", "delay", "ipv4", "ipv6", "ready"),
+							},
+						},
+						"delay": schema.StringAttribute{
+							Optional: true,
+						},
+						"nic": schema.StringAttribute{
+							Optional: true,
+						},
+					},
+				},
+			},
+
 			"device": schema.SetNestedBlock{
 				Description: "Profile device",
 				NestedObject: schema.NestedBlockObject{
@@ -454,6 +502,10 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 		}
 	}
 
+	if len(config.WaitForConfigs.Elements()) > 0 {
+		validateWaitFor(ctx, config, resp)
+	}
+
 	if !config.Files.IsNull() {
 		if !config.Running.IsNull() && !config.Running.ValueBool() {
 			resp.Diagnostics.AddError(
@@ -461,6 +513,79 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 				"Files can only be pushed to running instances.",
 			)
 		}
+
+		if config.IsVirtualMachine() {
+			validateWaitForAgentWithFiles(ctx, config, resp)
+		}
+	}
+}
+
+// validateWaitFor validates the wait_for configuration blocks.
+func validateWaitFor(ctx context.Context, config InstanceModel, resp *resource.ValidateConfigResponse) {
+	waitForList := make([]WaitForModel, 0, 1)
+	diags := config.WaitForConfigs.ElementsAs(ctx, &waitForList, false)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	for _, waitFor := range waitForList {
+		if waitFor.IsAgent() || waitFor.IsReady() {
+			if !waitFor.Nic.IsNull() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					`"nic" can only be set when type is set to "ipv4" or "ipv6.`,
+				)
+			}
+		}
+
+		if waitFor.IsAgent() && (config.Type.IsNull() || config.IsContainer()) {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				`"type" can only be set to "delay","ipv4" or "ipv6" when type is set to "container".`,
+			)
+		}
+
+		if config.IsVirtualMachine() && waitFor.IsReady() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				`"type" can only be set to "agent","ipv4" or "ipv6" when type is set to "virtual-machine".`,
+			)
+		}
+
+		if waitFor.IsDelay() {
+			if !waitFor.Nic.IsNull() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					`"nic" can only be set when type is set to "ipv4" or "ipv6.`,
+				)
+			}
+
+			if waitFor.Delay.IsNull() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					`"delay" is required when type is set to "delay".`,
+				)
+			}
+		}
+	}
+}
+
+// validateWaitForAgentWithFiles validates the wait_for configuration for the type agent.
+func validateWaitForAgentWithFiles(ctx context.Context, config InstanceModel, resp *resource.ValidateConfigResponse) {
+	waitForMap, diags := ToWaitForConfigMap(ctx, config.WaitForConfigs)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	_, found := waitForMap["agent"]
+	if !found {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			`Wait for "agent" is required when files are uploaded to the instance.`,
+		)
+		return
 	}
 }
 
@@ -523,12 +648,11 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		// Wait for the instance to obtain an IP address if network
-		// availability is requested by the user.
-		if plan.WaitForNetwork.ValueBool() {
-			diag := waitInstanceNetwork(ctx, server, instanceName)
-			if diag != nil {
-				resp.Diagnostics.Append(diag)
+		// Take the wait_for configurations into account.
+		if len(plan.WaitForConfigs.Elements()) > 0 {
+			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
+			if diags != nil {
+				resp.Diagnostics.Append(diags...)
 				return
 			}
 		}
@@ -624,12 +748,11 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 			return
 		}
 
-		// If instance is freshly started, we should also wait for
-		// network (if user requested that).
-		if plan.WaitForNetwork.ValueBool() {
-			diag := waitInstanceNetwork(ctx, server, instanceName)
-			if diag != nil {
-				resp.Diagnostics.Append(diag)
+		// If instance is freshly started, we also take the wait for configurations into account.
+		if len(plan.WaitForConfigs.Elements()) > 0 {
+			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
+			if diags != nil {
+				resp.Diagnostics.Append(diags...)
 				return
 			}
 		}
@@ -906,11 +1029,6 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.Target = types.StringValue("")
 	if server.IsClustered() || instance.Location != "none" {
 		m.Target = types.StringValue(instance.Location)
-	}
-
-	// Ensure default value is set (to prevent plan diff on import).
-	if m.WaitForNetwork.IsNull() {
-		m.WaitForNetwork = types.BoolValue(true)
 	}
 
 	return tfState.Set(ctx, &m)
@@ -1307,8 +1425,8 @@ func startInstance(ctx context.Context, server incus.InstanceServer, instanceNam
 		return diag.NewErrorDiagnostic(fmt.Sprintf("Failed to retrieve state of instance %q", instanceName), err.Error())
 	}
 
-	// Return if the instance is already fully operational.
-	if isInstanceOperational(*st) {
+	// Return if the instance is "Running" or "Ready".
+	if isInstanceRunning(*st) {
 		return nil
 	}
 
@@ -1332,12 +1450,6 @@ func startInstance(ctx context.Context, server incus.InstanceServer, instanceNam
 		st, _, err := server.GetInstanceState(instanceName)
 		if err != nil {
 			return st, "Error", err
-		}
-
-		// If instance is running, but not yet fully operationl, it
-		// means that the instance is still initializing.
-		if isInstanceRunning(*st) && !isInstanceOperational(*st) {
-			return st, "Running (initializing)", nil
 		}
 
 		return st, st.Status, nil
@@ -1404,36 +1516,151 @@ func stopInstance(ctx context.Context, server incus.InstanceServer, instanceName
 	return true, nil
 }
 
-// waitInstanceNetwork waits for an instance with the given name to receive
-// an IPv4 address on any interface (excluding loopback). This should be
-// called only if the instance is running.
-func waitInstanceNetwork(ctx context.Context, server incus.InstanceServer, instanceName string) diag.Diagnostic {
-	// instanceNetworkCheck function checks whether instance has
-	// received an IP address.
-	instanceNetworkCheck := func() (any, string, error) {
-		st, _, err := server.GetInstanceState(instanceName)
+// waitFor waits for the instance with the given name to reach the desired
+// state. It returns an error if the instance does not reach the desired
+// state within the given timeout.
+func waitFor(ctx context.Context, server incus.InstanceServer, instanceName string, waitFor types.Set) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	waitForMap, diags := ToWaitForConfigMap(ctx, waitFor)
+	if diags.HasError() {
+		return diags
+	}
+
+	for waitForModelType, waitForModel := range waitForMap {
+		switch waitForModelType {
+		case "agent":
+			diags = waitForInstanceAgent(ctx, server, instanceName)
+		case "delay":
+			duration := waitForModel.Delay.ValueString()
+			diags = waitForInstanceWithDelay(ctx, server, instanceName, duration)
+		case "ipv4", "ipv6":
+			nic := waitForModel.Nic.ValueString()
+			diags = waitForInstanceNetwork(ctx, server, instanceName, waitForModelType, nic)
+		case "ready":
+			diags = waitForInstanceToBeReady(ctx, server, instanceName)
+		default:
+			diags.AddError(fmt.Sprintf("Invalid value for wait_for: %q", waitForModelType), "")
+		}
+	}
+
+	return diags
+}
+
+// waitForInstanceAgent waits for an instance with the given name to have
+// the Incus agent fully operational.
+func waitForInstanceAgent(ctx context.Context, server incus.InstanceServer, instanceName string) diag.Diagnostics {
+	instanceAgentCheck := func() (any, string, error) {
+		state, _, err := server.GetInstanceState(instanceName)
 		if err != nil {
-			return st, "Error", err
+			return state, "Error", err
 		}
 
-		for iface, net := range st.Network {
+		if isInstanceOperational(*state) {
+			return state, "OK", nil
+		}
+
+		return state, "Waiting for instance to be ready", nil
+	}
+
+	_, err := waitForState(ctx, instanceAgentCheck, "OK")
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Failed to wait for instance %q agent to be ready", instanceName), err.Error())
+		return diags
+	}
+
+	return nil
+}
+
+// waitForInstanceWithDelay waits for an instance with the given name to wait
+// for a given duration before continuing.
+func waitForInstanceWithDelay(ctx context.Context, server incus.InstanceServer, instanceName string, delay string) diag.Diagnostics {
+	instanceDelayCheck := func() (any, string, error) {
+		state, _, err := server.GetInstanceState(instanceName)
+		if err != nil {
+			return state, "Error", err
+		}
+
+		duration, err := time.ParseDuration(delay)
+		if err != nil {
+			return state, "Error", err
+		}
+
+		time.Sleep(duration)
+
+		return state, "OK", nil
+	}
+
+	_, err := waitForState(ctx, instanceDelayCheck, "OK")
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Failed to wait for instance %q", instanceName), err.Error())
+		return diags
+	}
+
+	return nil
+}
+
+// waitForInstanceNetwork waits for an instance with the given name to receive
+// an IPv4 address on any interface (excluding loopback). This should be
+// called only if the instance is running.
+func waitForInstanceNetwork(ctx context.Context, server incus.InstanceServer, instanceName string, ipFamily string, nic string) diag.Diagnostics {
+	instanceNetworkCheck := func() (any, string, error) {
+		state, _, err := server.GetInstanceState(instanceName)
+		if err != nil {
+			return state, "Error", err
+		}
+
+		for iface, net := range state.Network {
 			if iface == "lo" {
 				continue
 			}
 
 			for _, ip := range net.Addresses {
-				if ip.Family == "inet" {
-					return st, "OK", nil
+				if ipFamily == "ipv4" && ip.Family == "inet" && (nic == "" || iface == nic) {
+					return state, "OK", nil
+				}
+				if ipFamily == "ipv6" && ip.Family == "inet6" && (nic == "" || iface == nic) {
+					return state, "OK", nil
 				}
 			}
 		}
 
-		return st, "Waiting for network", nil
+		return state, "Waiting for network", nil
 	}
 
 	_, err := waitForState(ctx, instanceNetworkCheck, "OK")
 	if err != nil {
-		return diag.NewErrorDiagnostic(fmt.Sprintf("Failed to wait for instance %q to get an IP address", instanceName), err.Error())
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Failed to wait for instance %q to get an IP address", instanceName), err.Error())
+		return diags
+	}
+
+	return nil
+}
+
+// waitForInstanceToBeReady waits for an instance with the given name to be
+// ready.
+func waitForInstanceToBeReady(ctx context.Context, server incus.InstanceServer, instanceName string) diag.Diagnostics {
+	instanceReadyCheck := func() (any, string, error) {
+		state, _, err := server.GetInstanceState(instanceName)
+		if err != nil {
+			return state, "Error", err
+		}
+
+		if isInstanceReady(*state) {
+			return state, "OK", nil
+		}
+
+		return state, "Waiting for instance to be ready", nil
+	}
+
+	_, err := waitForState(ctx, instanceReadyCheck, "OK")
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Failed to wait for instance %q to be ready", instanceName), err.Error())
+		return diags
 	}
 
 	return nil
@@ -1465,6 +1692,11 @@ func isInstanceOperational(s api.InstanceState) bool {
 // isInstanceRunning returns true if its status is either "Running" or "Ready".
 func isInstanceRunning(s api.InstanceState) bool {
 	return s.StatusCode == api.Running || s.StatusCode == api.Ready
+}
+
+// isInstanceRunning returns true if its status is "Ready".
+func isInstanceReady(s api.InstanceState) bool {
+	return s.StatusCode == api.Ready
 }
 
 // isInstanceStopped returns true if instance's status "Stopped".
@@ -1590,4 +1822,24 @@ func atMostOneOf(in ...interface{ IsNull() bool }) bool {
 		}
 	}
 	return count <= 1
+}
+
+// ToWaitForConfigMap converts wait_for from types.Set into map[string]WaitForModel.
+func ToWaitForConfigMap(ctx context.Context, waitForSet types.Set) (map[string]WaitForModel, diag.Diagnostics) {
+	if waitForSet.IsNull() || waitForSet.IsUnknown() {
+		return make(map[string]WaitForModel), nil
+	}
+
+	waitForConfigs := make([]WaitForModel, 0, len(waitForSet.Elements()))
+	diags := waitForSet.ElementsAs(ctx, &waitForConfigs, false)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	waitForMap := make(map[string]WaitForModel, len(waitForConfigs))
+	for _, f := range waitForConfigs {
+		waitForMap[f.Type.ValueString()] = f
+	}
+
+	return waitForMap, diags
 }
