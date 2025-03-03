@@ -6,7 +6,7 @@ TF_LOG?=error
 default: build
 
 test:
-	$(GO) get -d -t ./...
+	$(GO) get -t ./...
 	$(GO) test -parallel $$(nproc) -race -timeout 60m -v ./internal/...
 
 testacc:
@@ -64,8 +64,8 @@ static-analysis:
 
 .PHONY: update-gomod
 update-gomod:
-	$(GO) get -t -v -d -u ./...
-	$(GO) mod tidy --go=1.22.7
+	$(GO) get -t -v -u ./...
+	$(GO) mod tidy --go=1.23.0
 	$(GO) get toolchain@none
 	@echo "Dependencies updated"
 
