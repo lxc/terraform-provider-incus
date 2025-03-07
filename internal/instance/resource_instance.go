@@ -453,6 +453,15 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			}
 		}
 	}
+
+	if !config.Files.IsNull() {
+		if !config.Running.IsNull() && !config.Running.ValueBool() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Files can only be pushed to running instances.",
+			)
+		}
+	}
 }
 
 func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
