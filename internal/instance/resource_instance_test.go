@@ -946,6 +946,114 @@ func TestAccInstance_sourceFileWithStorage(t *testing.T) {
 	})
 }
 
+func TestAccInstance_waitForAgent(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckVirtualization(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForAgent(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "virtual-machine"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "agent"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_waitForDelay(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+	delay := "3s"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForDelay(instanceName, delay),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "delay"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.delay", delay),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_waitForIPv4(t *testing.T) {
+	networkName := petname.Generate(1, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForIPv4(networkName, instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "ipv4"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.nic", "eth0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_waitForIPv6(t *testing.T) {
+	networkName := petname.Generate(1, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForIPv6(networkName, instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "ipv6"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.nic", "eth0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_waitForIPv4AndIPv6(t *testing.T) {
+	networkName := petname.Generate(1, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForIPv4AndIPv6(networkName, instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "ipv4"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.nic", "eth0"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.1.type", "ipv6"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.1.nic", "eth0"),
+				),
+			},
+		},
+	})
+}
+
 func testAccInstance_basic(name string, image string) string {
 	return fmt.Sprintf(`
 resource "incus_instance" "instance1" {
@@ -1033,6 +1141,11 @@ func testAccInstance_started(name string, instanceType string) string {
 		config = `"security.secureboot" = false`
 	}
 
+	var waitForAgentConfig string
+	if instanceType == "virtual-machine" {
+		waitForAgentConfig = `wait_for { type = "agent" }`
+	}
+
 	return fmt.Sprintf(`
 resource "incus_instance" "instance1" {
   name    = "%s"
@@ -1043,8 +1156,10 @@ resource "incus_instance" "instance1" {
   config = {
     %s
   }
+
+	%s
 }
-	`, name, acctest.TestImage, instanceType, config)
+	`, name, acctest.TestImage, instanceType, config, waitForAgentConfig)
 }
 
 func testAccInstance_stopped(name string, instanceType string) string {
@@ -1181,7 +1296,6 @@ resource "incus_instance" "instance1" {
   name             = "%[1]s"
   image            = "%s"
   profiles         = []
-  wait_for_network = false
 
   device {
     name = "root"
@@ -1345,6 +1459,10 @@ resource "incus_instance" "instance1" {
     "security.secureboot" = false
   }
 
+	wait_for {
+		type = "agent"
+	}
+
   file {
     content            = "Hello from VM!\n"
     target_path        = "/foo/bar.txt"
@@ -1424,6 +1542,11 @@ resource "incus_instance" "instance1" {
   config = {
     "user.access_interface" = "eth0"
   }
+
+	wait_for {
+		type = "ipv4"
+		nic = "eth0"
+	}
 
   device {
     name = "eth0"
@@ -1615,4 +1738,154 @@ resource "incus_instance" "instance1" {
   running = true
 }
 `, instanceName, backupFile)
+}
+
+func testAccInstance_waitForAgent(name string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+	type = "virtual-machine"
+
+	config = {
+		"security.secureboot" = false
+	}
+
+	wait_for {
+		type = "agent"
+	}
+}
+	`, name, acctest.TestImage)
+}
+
+func testAccInstance_waitForDelay(name string, delay string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+	wait_for {
+		type  = "delay"
+		delay = "%s"
+	}
+}
+	`, name, acctest.TestImage, delay)
+}
+
+func testAccInstance_waitForIPv4(networkName, instanceName string) string {
+	return fmt.Sprintf(`
+resource "incus_network" "network1" {
+  name = "%s"
+
+  config = {
+    "ipv4.address" = "10.150.18.1/24"
+		"ipv6.address" = "none"
+  }
+}
+
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  config = {
+    "user.access_interface" = "eth0"
+  }
+
+	wait_for {
+		type = "ipv4"
+		nic = "eth0"
+	}
+
+  device {
+    name = "eth0"
+    type = "nic"
+
+    properties = {
+      nictype        = "bridged"
+      parent         = "${incus_network.network1.name}"
+      "ipv4.address" = "10.150.18.200"
+    }
+  }
+}
+	`, networkName, instanceName, acctest.TestImage)
+}
+
+func testAccInstance_waitForIPv6(networkName, instanceName string) string {
+	return fmt.Sprintf(`
+resource "incus_network" "network1" {
+  name = "%s"
+
+  config = {
+    "ipv4.address" = "none"
+    "ipv6.address" = "fd42:1000:1000:1000::1/64"
+  }
+}
+
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  config = {
+    "user.access_interface" = "eth0"
+  }
+
+	wait_for {
+		type = "ipv6"
+		nic  = "eth0"
+	}
+
+  device {
+    name = "eth0"
+    type = "nic"
+
+    properties = {
+      nictype = "bridged"
+      parent  = "${incus_network.network1.name}"
+    }
+  }
+}
+	`, networkName, instanceName, acctest.TestImage)
+}
+
+func testAccInstance_waitForIPv4AndIPv6(networkName, instanceName string) string {
+	return fmt.Sprintf(`
+resource "incus_network" "network1" {
+  name = "%s"
+
+  config = {
+    "ipv4.address" = "10.150.18.1/24"
+    "ipv6.address" = "fd42:1000:1000:1000::1/64"
+  }
+}
+
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  config = {
+    "user.access_interface" = "eth0"
+  }
+
+	wait_for {
+		type = "ipv4"
+		nic  = "eth0"
+	}
+
+	wait_for {
+		type = "ipv6"
+		nic  = "eth0"
+	}
+
+  device {
+    name = "eth0"
+    type = "nic"
+
+    properties = {
+      nictype        = "bridged"
+      parent         = "${incus_network.network1.name}"
+			"ipv4.address" = "10.150.18.200"
+    }
+  }
+}
+	`, networkName, instanceName, acctest.TestImage)
 }

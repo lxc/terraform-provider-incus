@@ -348,7 +348,11 @@ resource "incus_network" "eth1" {
 resource "incus_instance" "instance1" {
   name             = "%s"
   image            = "%s"
-  wait_for_network = true
+
+  wait_for {
+    type = "ipv4"
+    nic = "eth0"
+  }
 
   device {
     name = "eth0"
@@ -378,7 +382,6 @@ resource "incus_network" "eth1" {
 resource "incus_instance" "instance1" {
   name             = "%s"
   image            = "%s"
-  wait_for_network = false
 
   device {
     name = "eth0"
