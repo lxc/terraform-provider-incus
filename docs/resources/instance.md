@@ -123,6 +123,85 @@ resource "incus_instance" "instance1" {
 }
 ```
 
+## Example of waiting for the Incus agent in a virtual machine
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:debian/12"
+  type    = "virtual-machine"
+
+  wait_for {
+    type = "agent"
+  }
+}
+```
+
+## Example of waiting for a certain time period
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:debian/12"
+
+  wait_for {
+    type = "delay"
+    delay = "30s"
+  }
+}
+```
+
+## Example of waiting for the IPv4 network to be ready
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:debian/12"
+
+  wait_for {
+    type = "ipv4"
+  }
+}
+```
+
+## Example of waiting for the IPv6 network to be ready on a specific network interface
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:debian/12"
+
+  wait_for {
+    type = "ipv6"
+    nic  = "eth0"
+  }
+}
+```
+
+## Example of waiting for the IPv4 and IPv6 network to be ready on a specific network interface
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:debian/12"
+
+  wait_for {
+    type = "ipv4"
+    type = "eth0"
+  }
+
+  wait_for {
+    type = "ipv6"
+    type = "etho"
+  }
+}
+```
+
 ## Argument Reference
 
 * `name` - **Required** - Name of the instance.
@@ -136,14 +215,14 @@ resource "incus_instance" "instance1" {
 
 * `description` - *Optional* - Description of the instance.
 
-* `type` - *Optional* -  Instance type. Can be `container`, or `virtual-machine`. Defaults to `container`.
+* `type` - *Optional* - Instance type. Can be `container`, or `virtual-machine`. Defaults to `container`.
 
 * `ephemeral` - *Optional* - Boolean indicating if this instance is ephemeral. Defaults to `false`.
 
 * `running` - *Optional* - Boolean indicating whether the instance should be started (running). Defaults to `true`.
 
-* `wait_for_network` - *Optional* - Boolean indicating if the provider should wait for the instance to get an IPv4 address before considering the instance as started.
-  If `running` is set to false or instance is already running (on update), this value has no effect. Defaults to `true`.
+* `wait_for` - *Optional* - WaitFor definition. See reference below.
+  If `running` is set to false or instance is already running (on update), this value has no effect.
 
 * `profiles` - *Optional* - List of Incus config profiles to apply to the new
   instance. Profile `default` will be applied if profiles are not set (are `null`).
@@ -170,6 +249,14 @@ The `source_instance` block supports:
 * `name` - **Required** - Name of the source instance.
 
 * `snapshot`- *Optional* - Name of the snapshot of the source instance
+
+The `wait_for` block supports:
+
+* `type` - **Required** - Type for what should be waited for. Can be `agent`, `delay`, `ipv4`, `ipv6` or `ready`.
+
+* `delay` - *Optional* - Delay time that should be waited for when type is `delay`, e.g. `30s`.
+
+* `nic` - *Optional* - Network interface that should be waited for when type is `ipv4` or `ipv6`.
 
 The `device` block supports:
 

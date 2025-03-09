@@ -1,6 +1,7 @@
 package acctest
 
 import (
+	"os"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -28,7 +29,21 @@ func testProvider() *provider_config.IncusProviderConfig {
 	defer testProviderMutex.Unlock()
 
 	if testProviderConfig == nil {
-		config := incus_config.DefaultConfig()
+		var config *incus_config.Config
+
+		incusRemote := os.Getenv("INCUS_REMOTE")
+		if incusRemote != "" {
+			var err error
+			config, err = incus_config.LoadConfig("")
+			if err != nil {
+				panic(err)
+			}
+
+			config.DefaultRemote = incusRemote
+		} else {
+			config = incus_config.DefaultConfig()
+		}
+
 		acceptClientCert := true
 		testProviderConfig = provider_config.NewIncusProvider(config, acceptClientCert)
 	}
