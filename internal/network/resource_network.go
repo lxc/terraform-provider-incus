@@ -138,6 +138,40 @@ func (r *NetworkResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.provider = provider
 }
 
+func (r NetworkResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	if req.Config.Raw.IsNull() {
+		return
+	}
+
+	var plan NetworkModel
+	diags := req.Config.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	config, diag := common.ToConfigMap(ctx, plan.Config)
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	disallowedAutoKeys := []string{
+		"ipv4.address",
+		"ipv6.address",
+	}
+
+	for _, key := range disallowedAutoKeys {
+		value, found := config[key]
+		if found && value == "auto" {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				fmt.Sprintf(`%q cannot be set to "auto"`, key),
+			)
+		}
+	}
+}
+
 func (r NetworkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan NetworkModel
 
