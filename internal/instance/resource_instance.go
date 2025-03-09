@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -150,6 +151,14 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(
+						path.Expressions{
+							path.MatchRoot("source_instance"),
+							path.MatchRoot("source_file"),
+						}...,
+					),
+				},
 			},
 
 			"ephemeral": schema.BoolAttribute{
@@ -233,6 +242,13 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.Object{
+					objectvalidator.ConflictsWith(
+						path.Expressions{
+							path.MatchRoot("source_file"),
+						}...,
+					),
+				},
 			},
 
 			"source_file": schema.StringAttribute{
@@ -242,6 +258,16 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+					stringvalidator.ConflictsWith(
+						path.Expressions{
+							path.MatchRoot("description"),
+							path.MatchRoot("type"),
+							path.MatchRoot("ephemeral"),
+							path.MatchRoot("profiles"),
+							path.MatchRoot("file"),
+							path.MatchRoot("config"),
+						}...,
+					),
 				},
 			},
 
@@ -431,29 +457,7 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 		)
 	}
 
-	if !atMostOneOf(config.Image, config.SourceFile, config.SourceInstance) {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"At most one of image, source_file and source_instance can be set.",
-		)
-		return
-	}
-
 	if !config.SourceFile.IsNull() {
-		// Instances from source_file are mutually exclusive with a series of other attributes.
-		if !config.Description.IsNull() ||
-			!config.Type.IsNull() ||
-			!config.Ephemeral.IsNull() ||
-			!config.Profiles.IsNull() ||
-			!config.Files.IsNull() ||
-			!config.Config.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"Attribute source_file is mutually exclusive with description, type, ephemeral, profiles, file and config.",
-			)
-			return
-		}
-
 		// With `incus import`, a storage pool can be provided optionally.
 		// In order to support the same behavior with source_file,
 		// a single device entry of type `disk` is allowed with exactly two properties
@@ -1812,16 +1816,6 @@ func getAddresses(name string, entry api.InstanceStateNetwork) (string, string, 
 	}
 
 	return ipv4, ipv6, entry.Hwaddr, name, true
-}
-
-func atMostOneOf(in ...interface{ IsNull() bool }) bool {
-	var count int
-	for _, v := range in {
-		if !v.IsNull() {
-			count++
-		}
-	}
-	return count <= 1
 }
 
 // ToWaitForConfigMap converts wait_for from types.Set into map[string]WaitForModel.
