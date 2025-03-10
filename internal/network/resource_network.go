@@ -138,6 +138,50 @@ func (r *NetworkResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.provider = provider
 }
 
+func (r NetworkResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	if req.Config.Raw.IsNull() {
+		return
+	}
+
+	var plan NetworkModel
+	diags := req.Config.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = validateIncusConfig(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func validateIncusConfig(ctx context.Context, plan NetworkModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	// We assign the configuration to a map[string]interface{} and allow null values to be translated to empty values, as it may happen that a key is set to an unknown value and we want to allow it to be set to an empty string just to perform the validation
+	config, diag := common.ToConfigMapWithUnhandled(ctx, plan.Config)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
+	}
+
+	disallowedAutoKeys := []string{
+		"ipv4.address",
+		"ipv6.address",
+	}
+
+	for _, key := range disallowedAutoKeys {
+		value, found := config[key]
+		if found && value == "auto" {
+			diags.AddError(
+				"Invalid Configuration",
+				fmt.Sprintf(`%q cannot be set to "auto"`, key),
+			)
+		}
+	}
+
+	return diags
+}
+
 func (r NetworkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan NetworkModel
 

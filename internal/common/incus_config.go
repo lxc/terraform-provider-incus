@@ -8,15 +8,24 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// ToConfigMap converts config of type types.Map into map[string]string.
+// ToConfigMap converts config of type types.Map into map[string]string, whereby null values must be handled explicitly.
 func ToConfigMap(ctx context.Context, configMap types.Map) (map[string]string, diag.Diagnostics) {
+	return toConfigMap(ctx, configMap, false)
+}
+
+// ToConfigMap converts config of type types.Map into map[string]string, whereby null values are translated into empty values.
+func ToConfigMapWithUnhandled(ctx context.Context, configMap types.Map) (map[string]string, diag.Diagnostics) {
+	return toConfigMap(ctx, configMap, true)
+}
+
+func toConfigMap(ctx context.Context, configMap types.Map, allowUnhandled bool) (map[string]string, diag.Diagnostics) {
 	if configMap.IsNull() || configMap.IsUnknown() {
 		return make(map[string]string), nil
 	}
 
 	// Convert to an intermediate nullable type.
 	tfConfig := make(map[string]*string, len(configMap.Elements()))
-	diags := configMap.ElementsAs(ctx, &tfConfig, false)
+	diags := configMap.ElementsAs(ctx, &tfConfig, allowUnhandled)
 	if diags != nil {
 		return nil, diags
 	}
