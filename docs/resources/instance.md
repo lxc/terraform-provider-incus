@@ -197,7 +197,7 @@ resource "incus_instance" "instance1" {
 
   wait_for {
     type = "ipv6"
-    type = "etho"
+    type = "eth0"
   }
 }
 ```
