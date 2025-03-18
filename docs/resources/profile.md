@@ -45,6 +45,8 @@ resource "incus_instance" "test1" {
 
 * `name` - **Required** - Name of the profile.
 
+* `description` - *Optional* - Description of the profile.
+
 * `device` - *Optional* - Device definition. See reference below.
 
 * `config` - *Optional* - Map of key/value pairs of
