@@ -179,6 +179,11 @@ resource "incus_instance" "instance" {
       "ipv4.address" = "%[5]s"
     }
   }
+
+  wait_for {
+    type = "ipv4"
+    nic = "eth0"
+  }
 }
 
 resource "incus_network_lb" "test" {
