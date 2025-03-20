@@ -57,17 +57,17 @@ resource "incus_network_acl" "acl1" {
   not provided, the provider's default remote will be used.
 
 * `egress` - *Optional* - List of network ACL rules for egress traffic. See reference below.
- 
+
 * `ingress` - *Optional* - List of network ACL rules for ingress traffic. See reference below.
 
 The network ACL rule supports:
 
 * `action` - **Required** - Action to take for matching traffic , must be one of allow, allow-stateless, drop, reject
- 
+
 * `description` - *Optional* - Description of the network ACL rule.
 
 * `destination_port` - *Optional* - If protocol is `udp` or tcp, then a comma-separated list of ports or port ranges (start-end inclusive), or empty for any
- 
+
 * `destination` - *Optional* - Comma-separated list of CIDR or IP ranges, destination subject name selectors (for egress rules), or empty for any
 
 * `icmp_code` - *Optional* - If protocol is `icmp4` or `icmp6`, then ICMP code number, or empty for any

@@ -46,12 +46,12 @@ See the `incus_network_zone` resource for information on how to configure networ
 * `entry` - *Optional* - Entry in network zone record - see below.
 
 * `config` - *Optional* - Map of key/value pairs of
-	[network zone_config settings](https://linuxcontainers.org/incus/docs/main/howto/network_zones/#configuration-options).
+  [network zone_config settings](https://linuxcontainers.org/incus/docs/main/howto/network_zones/#configuration-options).
 
 * `project` - *Optional* - Name of the project where the network zone record will be created.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
 
 The `entry` block supports:
 

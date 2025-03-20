@@ -77,4 +77,3 @@ The following attributes are exported:
 ## Notes
 
 * See the Incus [documentation](https://linuxcontainers.org/incus/docs/main/howto/images_remote) for more info on default image remotes.
-

@@ -16,7 +16,7 @@ resource "incus_storage_bucket" "bucket1" {
 }
 ```
 
-## Example to create bucket from backup file 
+## Example to create bucket from backup file
 
 ```hcl
 resource "incus_storage_bucket" "bucket_from_backup" {
@@ -46,7 +46,6 @@ resource "incus_storage_bucket" "bucket_from_backup" {
 * `target` - *Optional* - Specify a target node in a cluster.
 
 * `source_file` - *Optional* - Path to a backup file from which the bucket will be created.
-
 
 ## Attribute Reference
 
@@ -88,6 +87,5 @@ import {
 
 ## Notes
 
-* Incus creates by default for each storage bucket an admin access key 
-	and a secret key. This key can be imported using the `incus_storage_bucket_key` resource.
-
+* Incus creates by default for each storage bucket an admin access key
+  and a secret key. This key can be imported using the `incus_storage_bucket_key` resource.

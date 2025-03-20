@@ -37,7 +37,7 @@ Cluster groups can be imported with the following command:
 terraform import incus_cluster_group_assignment.member [<remote>:]/<cluster_group>/<member>
 ```
 
-## Importing
+## Importing Syntax
 
 Import ID syntax: `[<remote>:]/<cluster_group>/<member>`
 
@@ -45,7 +45,7 @@ Import ID syntax: `[<remote>:]/<cluster_group>/<member>`
 * `<cluster_group>` - **Required** - Cluster group name.
 * `<member>` - **Required** - Cluster group member name.
 
-### Import example
+### Import Example
 
 Example using terraform import command:
 

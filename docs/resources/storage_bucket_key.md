@@ -42,7 +42,6 @@ resource "incus_storage_bucket_key" "key1" {
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
 
-
 ## Attribute Reference
 
 The following attributes are exported:

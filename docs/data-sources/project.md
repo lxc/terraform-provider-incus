@@ -29,4 +29,3 @@ resource "incus_instance" "d1" {
 
 * `config` - Map of key/value pairs of
   [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
-

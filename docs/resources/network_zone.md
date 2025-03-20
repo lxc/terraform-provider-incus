@@ -35,7 +35,6 @@ resource "incus_network_zone_record" "record" {
 
 See the `incus_network_zone_record` resource for information on how to configure network zone records.
 
-
 ## Argument Reference
 
 * `name` - **Required** - Name of the network zone.
@@ -43,12 +42,12 @@ See the `incus_network_zone_record` resource for information on how to configure
 * `description` - *Optional* - Description of the network zone.
 
 * `config` - *Optional* - Map of key/value pairs of
-	[network zone_config settings](https://linuxcontainers.org/incus/docs/main/howto/network_zones/#configuration-options).
+  [network zone_config settings](https://linuxcontainers.org/incus/docs/main/howto/network_zones/#configuration-options).
 
 * `project` - *Optional* - Name of the project where the network zone will be created.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
 
 ## Attribute Reference
 
@@ -83,4 +82,3 @@ import {
   id = "proj/zone1"
 }
 ```
-

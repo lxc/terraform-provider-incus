@@ -1,7 +1,7 @@
 # incus_network_peer
 
-Incus allows creating peer routing relationships between two OVN networks. Using this method, traffic between the two 
-networks can go directly from one OVN network to the other and thus stays within the OVN subsystem, rather than transiting 
+Incus allows creating peer routing relationships between two OVN networks. Using this method, traffic between the two
+networks can go directly from one OVN network to the other and thus stays within the OVN subsystem, rather than transiting
 through the uplink network.
 
 -> The peer resource is exclusively compatible with OVN (Open Virtual Network).
