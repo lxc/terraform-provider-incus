@@ -270,7 +270,7 @@ The `device` block supports:
 
 The `file` block supports:
 
-* `content` - **Required** unless source_path is used* - The _contents_ of the file.
+* `content` - **Required** unless source_path is used* - The *contents* of the file.
   Use the `file()` function to read in the content of a file from disk.
 
 * `source_path` - **Required** unless content is used* - The source path to a file to

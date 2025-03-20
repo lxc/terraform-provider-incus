@@ -50,22 +50,22 @@ resource "incus_instance" "test1" {
 * `device` - *Optional* - Device definition. See reference below.
 
 * `config` - *Optional* - Map of key/value pairs of
-	[instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
+  [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
 
 * `project` - *Optional* - Name of the project where the profile will be stored.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
 
 The `device` block supports:
 
 * `name` - **Required** - Name of the device.
 
 * `type` - **Required** - Type of the device Must be one of none, disk, nic,
-	unix-char, unix-block, usb, gpu, infiniband, proxy, unix-hotplug, tpm, pci.
+  unix-char, unix-block, usb, gpu, infiniband, proxy, unix-hotplug, tpm, pci.
 
 * `properties`- **Required** - Map of key/value pairs of
-	[device properties](https://linuxcontainers.org/incus/docs/main/reference/devices/).
+  [device properties](https://linuxcontainers.org/incus/docs/main/reference/devices/).
 
 ## Attribute Reference
 
@@ -79,7 +79,7 @@ Profiles can be imported with the following command:
 terraform import incus_profile.my_profile [<remote>:][<project>/]<profile_name>
 ```
 
-## Importing
+## Importing Syntax
 
 Import ID syntax: `[<remote>:][<project>/]<name>`
 
@@ -87,7 +87,7 @@ Import ID syntax: `[<remote>:][<project>/]<name>`
 * `<project>` - *Optional* - Project name.
 * `<name>` - **Required** - Profile name.
 
-### Import example
+### Import Example
 
 Example using terraform import command:
 
@@ -112,4 +112,4 @@ import {
 ## Notes
 
 * The order in which profiles are specified is important. Incus applies profiles
-	from left to right. Profile options may be overridden by other profiles.
+  from left to right. Profile options may be overridden by other profiles.

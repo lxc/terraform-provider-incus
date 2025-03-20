@@ -24,13 +24,13 @@ resource "incus_instance_snapshot" "snap1" {
 * `instance` - **Required** - The name of the instance to snapshot.
 
 * `stateful` - *Optional* - Set to `true` to create a stateful snapshot,
-	`false` for stateless. Stateful snapshots include runtime state. Defaults to
-	`false`.
+  `false` for stateless. Stateful snapshots include runtime state. Defaults to
+  `false`.
 
 * `project` - *Optional* - Name of the project where the snapshot will be stored.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
 
 ## Attribute Reference
 

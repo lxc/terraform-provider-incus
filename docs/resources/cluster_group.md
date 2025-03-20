@@ -33,14 +33,14 @@ Cluster groups can be imported with the following command:
 terraform import incus_cluster_group.my_group [<remote>:]<name>
 ```
 
-## Importing
+## Importing Syntax
 
 Import ID syntax: `[<remote>:]<name>`
 
 * `<remote>` - *Optional* - Remote name.
 * `<name>` - **Required** - Cluster group name.
 
-### Import example
+### Import Example
 
 Example using terraform import command:
 

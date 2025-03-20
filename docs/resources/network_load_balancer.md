@@ -72,7 +72,7 @@ resource "incus_network_lb" "load_balancer" {
 * `project` - *Optional* - Name of the project where the load balancer will be spawned.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
-	not provided, the provider's default remote will be used.
+  not provided, the provider's default remote will be used.
 
 The `backend` block supports:
 
@@ -97,5 +97,3 @@ The `port` block supports:
 ## Attribute Reference
 
 No attributes are exported.
-
-
