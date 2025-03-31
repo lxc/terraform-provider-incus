@@ -1397,6 +1397,7 @@ func (_ InstanceModel) ComputedKeys() []string {
 	return []string{
 		"environment.",
 		"image.",
+		"oci.",
 		"volatile.",
 	}
 }
