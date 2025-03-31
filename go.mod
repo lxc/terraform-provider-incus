@@ -1,6 +1,7 @@
 module github.com/lxc/terraform-provider-incus
 
 go 1.23.0
+toolchain go1.24.1
 
 require (
 	github.com/dustinkirkland/golang-petname v0.0.0-20240428194347-eebcea082ee0
@@ -10,7 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.26.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.1
 	github.com/hashicorp/terraform-plugin-testing v1.12.0
-	github.com/lxc/incus/v6 v6.10.1
+	github.com/lxc/incus/v6 v6.11.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sys v0.31.0
@@ -59,16 +60,16 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/muhlemmer/gu v0.3.1 // indirect
 	github.com/oklog/run v1.1.0 // indirect
-	github.com/pkg/sftp v1.13.8 // indirect
+	github.com/pkg/sftp v1.13.9 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/zclconf/go-cty v1.16.2 // indirect
-	github.com/zitadel/logging v0.6.1 // indirect
-	github.com/zitadel/oidc/v3 v3.36.1 // indirect
-	github.com/zitadel/schema v1.3.0 // indirect
+	github.com/zitadel/logging v0.6.2 // indirect
+	github.com/zitadel/oidc/v3 v3.37.0 // indirect
+	github.com/zitadel/schema v1.3.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
@@ -82,9 +83,9 @@ require (
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
 	google.golang.org/grpc v1.71.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
