@@ -423,6 +423,10 @@ func determineIncusDir() (string, error) {
 	incusSocketPaths := []string{
 		"/var/lib/incus/unix.socket",
 		"/var/lib/incus/unix.socket.user",
+		"/run/incus/unix.socket",
+		"/run/incus/unix.socket.user",
+		"/usr/lib/systemd/system/incus.socket",
+		"/usr/lib/systemd/system/incus-user.socket",
 	}
 
 	// Iterate over incusSocketPaths and find a writable unix socket.
