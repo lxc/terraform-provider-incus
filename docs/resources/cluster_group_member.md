@@ -1,6 +1,6 @@
-# incus_cluster_group_assignment
+# incus_cluster_group_member
 
-Manages an Incus cluster group assignment.
+Manages an Incus cluster group member.
 
 ## Example Usage
 
@@ -10,7 +10,7 @@ resource "incus_cluster_group" "amd64" {
   description = "x86-64 nodes"
 }
 
-resource "incus_cluster_group_assignment" "node_11" {
+resource "incus_cluster_group_member" "node_11" {
   cluster_group = incus_cluster_group.amd64.name
   member        = "node_1"
 }
@@ -34,7 +34,7 @@ No attributes are exported.
 Cluster groups can be imported with the following command:
 
 ```shell
-terraform import incus_cluster_group_assignment.member [<remote>:]/<cluster_group>/<member>
+terraform import incus_cluster_group_member.member [<remote>:]/<cluster_group>/<member>
 ```
 
 ## Importing Syntax
@@ -50,13 +50,13 @@ Import ID syntax: `[<remote>:]/<cluster_group>/<member>`
 Example using terraform import command:
 
 ```shell
-terraform import incus_cluster_group_assignment.node_1 /my-cluster/node-1
+terraform import incus_cluster_group_member.node_1 /my-cluster/node-1
 ```
 
 Example using the import block (only available in Terraform v1.5.0 and later):
 
 ```hcl
-resource "incus_cluster_group_assignment" "node_1" {
+resource "incus_cluster_group_member" "node_1" {
   cluster_group = "my-cluster"
   member        = "node-1"
 }

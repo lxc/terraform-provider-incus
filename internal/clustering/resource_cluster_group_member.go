@@ -20,25 +20,25 @@ import (
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
 
-type ClusterGroupAssignmentModel struct {
+type ClusterGroupMemberModel struct {
 	Remote       types.String `tfsdk:"remote"`
 	ClusterGroup types.String `tfsdk:"cluster_group"`
 	Member       types.String `tfsdk:"member"`
 }
 
-type ClusterGroupAssignmentResource struct {
+type ClusterGroupMemberResource struct {
 	provider *provider_config.IncusProviderConfig
 }
 
-func NewClusterGroupAssignmentResource() resource.Resource {
-	return &ClusterGroupAssignmentResource{}
+func NewClusterGroupMemberResource() resource.Resource {
+	return &ClusterGroupMemberResource{}
 }
 
-func (r *ClusterGroupAssignmentResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = fmt.Sprintf("%s_cluster_group_assignment", req.ProviderTypeName)
+func (r *ClusterGroupMemberResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = fmt.Sprintf("%s_cluster_group_member", req.ProviderTypeName)
 }
 
-func (r *ClusterGroupAssignmentResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *ClusterGroupMemberResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"remote": schema.StringAttribute{
@@ -65,7 +65,7 @@ func (r *ClusterGroupAssignmentResource) Schema(ctx context.Context, req resourc
 	}
 }
 
-func (r *ClusterGroupAssignmentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *ClusterGroupMemberResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := req.ProviderData
 	if data == nil {
 		return
@@ -80,8 +80,8 @@ func (r *ClusterGroupAssignmentResource) Configure(_ context.Context, req resour
 	r.provider = provider
 }
 
-func (r *ClusterGroupAssignmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan ClusterGroupAssignmentModel
+func (r *ClusterGroupMemberResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan ClusterGroupMemberModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -136,8 +136,8 @@ func (r *ClusterGroupAssignmentResource) Create(ctx context.Context, req resourc
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *ClusterGroupAssignmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state ClusterGroupAssignmentModel
+func (r *ClusterGroupMemberResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state ClusterGroupMemberModel
 
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -156,12 +156,12 @@ func (r *ClusterGroupAssignmentResource) Read(ctx context.Context, req resource.
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *ClusterGroupAssignmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *ClusterGroupMemberResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// A replacement is always forced for this resource if a value is changed in the model.
 }
 
-func (r *ClusterGroupAssignmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state ClusterGroupAssignmentModel
+func (r *ClusterGroupMemberResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state ClusterGroupMemberModel
 
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -200,9 +200,9 @@ func (r *ClusterGroupAssignmentResource) Delete(ctx context.Context, req resourc
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *ClusterGroupAssignmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *ClusterGroupMemberResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	meta := common.ImportMetadata{
-		ResourceName:   "cluster_group_assignment",
+		ResourceName:   "cluster_group_member",
 		RequiredFields: []string{"cluster_group", "member"},
 	}
 
@@ -220,7 +220,7 @@ func (r *ClusterGroupAssignmentResource) ImportState(ctx context.Context, req re
 // SyncState fetches the server's current state for a cluster group and updates
 // the provided model. It then applies this updated model as the new state
 // in Terraform.
-func (r *ClusterGroupAssignmentResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m ClusterGroupAssignmentModel) diag.Diagnostics {
+func (r *ClusterGroupMemberResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m ClusterGroupMemberModel) diag.Diagnostics {
 	var respDiags diag.Diagnostics
 
 	clusterGroupName := m.ClusterGroup.ValueString()

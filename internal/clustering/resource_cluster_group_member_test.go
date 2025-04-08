@@ -10,7 +10,7 @@ import (
 	"github.com/lxc/terraform-provider-incus/internal/acctest"
 )
 
-func TestAccClusterGroupAssignment_basic(t *testing.T) {
+func TestAccClusterGroupMember_basic(t *testing.T) {
 	clusterGroupName := petname.Generate(2, "-")
 	clusterGroupMemberName := "node-1"
 
@@ -22,23 +22,23 @@ func TestAccClusterGroupAssignment_basic(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccClusterGroupAssignment_basic(clusterGroupName, clusterGroupMemberName),
+				Config: testAccClusterGroupMember_basic(clusterGroupName, clusterGroupMemberName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_cluster_group_assignment.group1_node1", "cluster_group", clusterGroupName),
-					resource.TestCheckResourceAttr("incus_cluster_group_assignment.group1_node1", "member", clusterGroupMemberName),
+					resource.TestCheckResourceAttr("incus_cluster_group_member.group1_node1", "cluster_group", clusterGroupName),
+					resource.TestCheckResourceAttr("incus_cluster_group_member.group1_node1", "member", clusterGroupMemberName),
 				),
 			},
 		},
 	})
 }
 
-func testAccClusterGroupAssignment_basic(clusterGroupName string, clusterGroupMemberName string) string {
+func testAccClusterGroupMember_basic(clusterGroupName string, clusterGroupMemberName string) string {
 	return fmt.Sprintf(`
 resource "incus_cluster_group" "group1" {
   name   = "%[1]s"
 }
 
-resource "incus_cluster_group_assignment" "group1_node1" {
+resource "incus_cluster_group_member" "group1_node1" {
   cluster_group = incus_cluster_group.group1.name
   member        = "%[2]s"
 }
