@@ -265,7 +265,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		config.NewCertificateResource,
-		clustering.NewClusterGroupAssignmentResource,
+		clustering.NewClusterGroupMemberResource,
 		clustering.NewClusterGroupResource,
 		image.NewImageResource,
 		instance.NewInstanceResource,
