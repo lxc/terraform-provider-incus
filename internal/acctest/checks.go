@@ -105,6 +105,27 @@ func PreCheckClustering(t *testing.T) {
 	}
 }
 
+func PreCheck_x86_64(t *testing.T) {
+	p := testProvider()
+	server, err := p.InstanceServer("", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	apiServer, _, err := server.GetServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, arch := range apiServer.Environment.Architectures {
+		if arch == "x86_64" {
+			return
+		}
+	}
+
+	t.Skipf("Test %q skipped: Incus server does not support x86_64.", t.Name())
+}
+
 // PrintResourceState is a test check function that prints the entire state
 // of a resource with the given name. This check should be used only for
 // debuging purposes.
