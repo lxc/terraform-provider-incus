@@ -55,6 +55,28 @@ func TestAccInstance_noImage(t *testing.T) {
 	})
 }
 
+func TestAccInstance_noImageWithArchitecture(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+	architecture := "x86_64"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheck_x86_64(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_noImageWithArchitecture(instanceName, architecture),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "architecture", architecture),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_ephemeral(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -1070,6 +1092,16 @@ resource "incus_instance" "instance1" {
   running = false
 }
 	`, name)
+}
+
+func testAccInstance_noImageWithArchitecture(name string, architecture string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name         = "%s"
+  architecture = "%s"
+  running      = false
+}
+	`, name, architecture)
 }
 
 func testAccInstance_ephemeral(name string) string {

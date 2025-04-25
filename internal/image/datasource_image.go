@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/lxc/incus/v6/shared/api"
 
+	"github.com/lxc/terraform-provider-incus/internal/common"
 	"github.com/lxc/terraform-provider-incus/internal/errors"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
@@ -63,7 +64,7 @@ func (d *ImageDataSource) Schema(_ context.Context, req datasource.SchemaRequest
 				Optional: true,
 				Computed: true,
 				Validators: []validator.String{
-					architectureValidator{},
+					common.ArchitectureValidator{},
 				},
 			},
 
