@@ -242,6 +242,8 @@ resource "incus_instance" "instance1" {
 
 * `target` - *Optional* - Specify a target node in a cluster.
 
+* `architecture` - *Optional* - The instance architecture (e.g. x86_64, aarch64). See [Architectures](https://linuxcontainers.org/incus/docs/main/architectures/) for all possible values.
+
 The `source_instance` block supports:
 
 * `project` - **Required** - Name of the project in which the source instance exists.
