@@ -30,6 +30,7 @@ import (
 	"github.com/lxc/incus/v6/shared/api"
 	"github.com/lxc/incus/v6/shared/archive"
 
+	"github.com/lxc/terraform-provider-incus/internal/common"
 	"github.com/lxc/terraform-provider-incus/internal/errors"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 	"github.com/lxc/terraform-provider-incus/internal/utils"
@@ -138,7 +139,7 @@ func (r ImageResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 							stringplanmodifier.RequiresReplace(),
 						},
 						Validators: []validator.String{
-							architectureValidator{},
+							common.ArchitectureValidator{},
 						},
 					},
 					"copy_aliases": schema.BoolAttribute{

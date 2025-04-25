@@ -56,6 +56,7 @@ type InstanceModel struct {
 	Target         types.String `tfsdk:"target"`
 	SourceInstance types.Object `tfsdk:"source_instance"`
 	SourceFile     types.String `tfsdk:"source_file"`
+	Architecture   types.String `tfsdk:"architecture"`
 
 	// Computed.
 	IPv4   types.String `tfsdk:"ipv4_address"`
@@ -156,6 +157,7 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						path.Expressions{
 							path.MatchRoot("source_instance"),
 							path.MatchRoot("source_file"),
+							path.MatchRoot("architecture"),
 						}...,
 					),
 				},
@@ -246,6 +248,7 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectvalidator.ConflictsWith(
 						path.Expressions{
 							path.MatchRoot("source_file"),
+							path.MatchRoot("architecture"),
 						}...,
 					),
 				},
@@ -266,8 +269,21 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							path.MatchRoot("profiles"),
 							path.MatchRoot("file"),
 							path.MatchRoot("config"),
+							path.MatchRoot("architecture"),
 						}...,
 					),
+				},
+			},
+
+			"architecture": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					common.ArchitectureValidator{},
 				},
 			},
 
@@ -1068,6 +1084,7 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.Profiles = profiles
 	m.Devices = devices
 	m.Config = config
+	m.Architecture = types.StringValue(instance.Architecture)
 
 	// Update "running" attribute based on the instance's current status.
 	// This way, terraform will detect the change if the current status
@@ -1422,16 +1439,25 @@ func prepareInstancesPost(ctx context.Context, plan InstanceModel) (api.Instance
 		return api.InstancesPost{}, diags
 	}
 
+	payload := api.InstancePut{
+		Description: plan.Description.ValueString(),
+		Ephemeral:   plan.Ephemeral.ValueBool(),
+		Config:      config,
+		Profiles:    profiles,
+		Devices:     devices,
+	}
+
+	// We need to make sure that we only set this value if the architecture is
+	// defined in the plan, otherwise the architecture will be derived from the
+	// image, source file or source instance later.
+	if !plan.Architecture.IsNull() {
+		payload.Architecture = plan.Architecture.ValueString()
+	}
+
 	instance := api.InstancesPost{
-		Name: plan.Name.ValueString(),
-		Type: api.InstanceType(plan.Type.ValueString()),
-		InstancePut: api.InstancePut{
-			Description: plan.Description.ValueString(),
-			Ephemeral:   plan.Ephemeral.ValueBool(),
-			Config:      config,
-			Profiles:    profiles,
-			Devices:     devices,
-		},
+		Name:        plan.Name.ValueString(),
+		Type:        api.InstanceType(plan.Type.ValueString()),
+		InstancePut: payload,
 	}
 	return instance, nil
 }

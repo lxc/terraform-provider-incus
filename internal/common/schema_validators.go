@@ -1,4 +1,4 @@
-package image
+package common
 
 import (
 	"context"
@@ -9,18 +9,18 @@ import (
 	"github.com/lxc/incus/v6/shared/osarch"
 )
 
-type architectureValidator struct{}
+type ArchitectureValidator struct{}
 
-func (v architectureValidator) Description(ctx context.Context) string {
+func (v ArchitectureValidator) Description(ctx context.Context) string {
 	supportedArchitecturesList := strings.Join(osarch.SupportedArchitectures(), ", ")
 	return fmt.Sprintf("Attribute architecture value must be one of: %s.", supportedArchitecturesList)
 }
 
-func (v architectureValidator) MarkdownDescription(ctx context.Context) string {
+func (v ArchitectureValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
-func (v architectureValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+func (v ArchitectureValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
 	value := req.ConfigValue.ValueString()
 	if value == "" {
 		return
