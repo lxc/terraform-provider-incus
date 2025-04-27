@@ -71,7 +71,7 @@ func (r StoragePoolResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("dir", "zfs", "lvm", "btrfs", "ceph", "cephfs", "cephobject"),
+					stringvalidator.OneOf("dir", "zfs", "lvm", "lvmcluster", "btrfs", "ceph", "cephfs", "cephobject"),
 				},
 			},
 
@@ -352,6 +352,11 @@ func (_ StoragePoolModel) ComputedKeys(driver string) []string {
 			"size",
 			"lvm.vg_name",
 			"lvm.thinpool_name",
+		}
+	case "lvmcluster":
+		keys = []string{
+			"source",
+			"lvm.vg_name",
 		}
 	case "btrfs":
 		keys = []string{

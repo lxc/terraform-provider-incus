@@ -53,7 +53,7 @@ for more details on how to create a storage pool in clustered mode.
 
 * `name`   - **Required** - Name of the storage pool.
 
-* `driver` - **Required** - Storage Pool driver. Must be one of `dir`, `zfs`, `lvm`, `btrfs`, `ceph`, `cephfs`, or `cephobject`.
+* `driver` - **Required** - Storage Pool driver. Must be one of `dir`, `zfs`, `lvm`, `lvmcluster`, `btrfs`, `ceph`, `cephfs`, or `cephobject`.
 
 * `description` - *Optional* - Description of the storage pool.
 
