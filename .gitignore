@@ -1,8 +1,9 @@
 dist/
 
-.idea
 **/*.swp
-settings.json
+
+.idea/
+.vscode/
 
 terraform-provider-incus
 terraform-provider-incus.iml
