@@ -422,6 +422,8 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 		return respDiags
 	}
 
+	originalStateAliases := m.Aliases
+
 	if !m.SourceImage.IsNull() {
 		var sourceImageModel SourceImageModel
 		respDiags = m.SourceImage.As(ctx, &sourceImageModel, basetypes.ObjectAsOptions{})
@@ -466,6 +468,7 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 	m.Fingerprint = types.StringValue(image.Fingerprint)
 	m.CreatedAt = types.Int64Value(image.CreatedAt.Unix())
 	m.Aliases = aliasSet
+	m.Aliases = originalStateAliases
 
 	if respDiags.HasError() {
 		return respDiags
