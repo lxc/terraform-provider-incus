@@ -101,8 +101,8 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
-							Required:    true,
-							Description: "Name of the Incus remote. Required when incus_scheme set to https, to enable locating server certificate.",
+							Optional:    true,
+							Description: "Name of the Incus remote. Required when incus_address scheme set to https, to enable locating server certificate.",
 						},
 
 						"address": schema.StringAttribute{
@@ -125,7 +125,7 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 
 						"auth_type": schema.StringAttribute{
 							Optional:    true,
-							Description: "Server authentication type (tls or oidc)",
+							Description: "Server authentication type, tls or oidc. ( Only for the `incus` protocol )",
 							Validators: []validator.String{
 								stringvalidator.OneOf("tls", "oidc"),
 							},
