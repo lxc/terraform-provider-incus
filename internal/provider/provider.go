@@ -88,6 +88,10 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 				Optional:    true,
 				Description: "The project where project-scoped resources will be created. Can be overridden in individual resources. (default = default)",
 			},
+			"default_remote": schema.StringAttribute{
+				Optional:    true,
+				Description: "The `name` of the default remote to use.",
+			},
 		},
 
 		Blocks: map[string]schema.Block{
@@ -102,31 +106,31 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 
 						"address": schema.StringAttribute{
 							Optional:    true,
-							Description: "The FQDN or IP where the Incus daemon can be contacted. (default = \"\" (read from lxc config))",
+							Description: "The FQDN, IP, or URL where the Incus daemon can be contacted. (default = \"\" (read from lxc config))",
 						},
 
-						"port": schema.StringAttribute{
+						"protocol": schema.StringAttribute{
 							Optional:    true,
-							Description: "Port Incus Daemon API is listening on. (default = 8443)",
-						},
-
-						"scheme": schema.StringAttribute{
-							Optional:    true,
-							Description: "Unix (unix) or HTTPs (https). (default = unix)",
+							Description: "Server protocol (incus, oci or simplestreams)",
 							Validators: []validator.String{
-								stringvalidator.OneOf("unix", "https"),
+								stringvalidator.OneOf("incus", "oci", "simplestreams"),
 							},
 						},
 
-						"token": schema.StringAttribute{
+						"public": schema.BoolAttribute{
 							Optional:    true,
-							Sensitive:   true,
-							Description: "The trust token for the remote.",
+							Description: "Public image server",
 						},
 
-						"default": schema.BoolAttribute{
+						"auth_type": schema.StringAttribute{
 							Optional:    true,
-							Description: "Set this remote as default.",
+							Sensitive:   true,
+							Description: "The type of authentication to use. ( Only for the `incus` protocol)",
+						},
+
+						"default_project": schema.StringAttribute{
+							Optional:    true,
+							Description: "Default project to configure. ( Only for the `incus` protocol )",
 						},
 					},
 				},
