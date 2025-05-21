@@ -29,17 +29,18 @@ import (
 
 // IncusProviderRemoteModel represents provider's schema remote.
 type IncusProviderRemoteModel struct {
-	Name    types.String `tfsdk:"name"`
-	Address types.String `tfsdk:"address"`
-	Port    types.String `tfsdk:"port"`
-	Token   types.String `tfsdk:"token"`
-	Scheme  types.String `tfsdk:"scheme"`
-	Default types.Bool   `tfsdk:"default"`
+	Name            types.String `tfsdk:"name"`
+	Address         types.String `tfsdk:"address"`
+	Protocol        types.String `tfsdk:"protocol"`
+	Auth_Type       types.String `tfsdk:"auth_type"`
+	Default_Project types.String `tfsdk:"default_project"`
+	Public          types.Bool   `tfsdk:"public"`
 }
 
 // IncusProviderModel represents provider's schema.
 type IncusProviderModel struct {
 	Remotes                    []IncusProviderRemoteModel `tfsdk:"remote"`
+	Default_Remote             types.String               `tfsdk:"default_remote"`
 	ConfigDir                  types.String               `tfsdk:"config_dir"`
 	Project                    types.String               `tfsdk:"project"`
 	AcceptRemoteCertificate    types.Bool                 `tfsdk:"accept_remote_certificate"`
