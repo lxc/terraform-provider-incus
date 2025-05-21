@@ -33,6 +33,7 @@ type IncusProviderRemoteModel struct {
 	Address         types.String `tfsdk:"address"`
 	Protocol        types.String `tfsdk:"protocol"`
 	Auth_Type       types.String `tfsdk:"auth_type"`
+	Token           types.String `tfsdk:"token"`
 	Default_Project types.String `tfsdk:"default_project"`
 	Public          types.Bool   `tfsdk:"public"`
 }
@@ -128,6 +129,12 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 							Validators: []validator.String{
 								stringvalidator.OneOf("tls", "oidc"),
 							},
+						},
+
+						"token": schema.StringAttribute{
+							Optional:    true,
+							Sensitive:   true,
+							Description: "The trust token for the remote.",
 						},
 
 						"default_project": schema.StringAttribute{
@@ -228,6 +235,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			Address:         os.Getenv("INCUS_ADDR"),
 			Protocol:        os.Getenv("INCUS_PROTOCOL"),
 			Auth_Type:       os.Getenv("INCUS_AUTHTYPE"),
+			Token:           os.Getenv("INCUS_TOKEN"),
 			Default_Project: os.Getenv("INCUS_DEFAULTPROJECT"),
 			Public:          env_public,
 		}
@@ -265,6 +273,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			Address:         remote.Address.ValueString(),
 			Protocol:        protocol,
 			Auth_Type:       auth_type,
+			Token:           remote.Token.ValueString(),
 			Default_Project: remote.Default_Project.ValueString(),
 			Public:          remote.Public.ValueBool(),
 		}
