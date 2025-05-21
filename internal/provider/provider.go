@@ -91,7 +91,7 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			},
 			"default_remote": schema.StringAttribute{
 				Optional:    true,
-				Description: "The `name` of the default remote to use.",
+				Description: "The `address` of the default remote to use.",
 			},
 		},
 
@@ -278,7 +278,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			Public:          remote.Public.ValueBool(),
 		}
 
-		if data.Default_Remote.ValueString() == remote.Name.ValueString() {
+		if data.Default_Remote.ValueString() == remote.Address.ValueString() {
 			isDefault = true
 		}
 		incusProvider.SetRemote(incusProviderRemoteConfig, isDefault)
