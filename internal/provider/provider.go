@@ -124,8 +124,10 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 
 						"auth_type": schema.StringAttribute{
 							Optional:    true,
-							Sensitive:   true,
-							Description: "The type of authentication to use. ( Only for the `incus` protocol)",
+							Description: "Server authentication type (tls or oidc)",
+							Validators: []validator.String{
+								stringvalidator.OneOf("tls", "oidc"),
+							},
 						},
 
 						"default_project": schema.StringAttribute{
