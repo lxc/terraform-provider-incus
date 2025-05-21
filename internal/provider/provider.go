@@ -217,12 +217,19 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	// }
 	envName := os.Getenv("INCUS_REMOTE")
 	if envName != "" {
+		var env_public bool
+		if os.Getenv("INCUS_PUBLIC") == "true" || os.Getenv("INCUS_PUBLIC") == "True" {
+			env_public = true
+		} else {
+			env_public = false
+		}
 		envRemote := provider_config.IncusProviderRemoteConfig{
-			Name:    envName,
-			Address: os.Getenv("INCUS_ADDR"),
-			Port:    os.Getenv("INCUS_PORT"),
-			Token:   os.Getenv("INCUS_TOKEN"),
-			Scheme:  os.Getenv("INCUS_SCHEME"),
+			Name:            envName,
+			Address:         os.Getenv("INCUS_ADDR"),
+			Protocol:        os.Getenv("INCUS_PROTOCOL"),
+			Auth_Type:       os.Getenv("INCUS_AUTHTYPE"),
+			Default_Project: os.Getenv("INCUS_DEFAULTPROJECT"),
+			Public:          env_public,
 		}
 
 		// This will be the default remote unless overridden by an
@@ -241,25 +248,30 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	// in Terraform configurations where the Incus remote might not
 	// exist yet.
 	for _, remote := range data.Remotes {
-		port := remote.Port.ValueString()
-		if port == "" {
-			port = "8443"
+		isDefault := false
+
+		protocol := remote.Protocol.ValueString()
+		if protocol == "" {
+			protocol = "incus"
 		}
 
-		scheme := remote.Scheme.ValueString()
-		if scheme == "" {
-			scheme = "unix"
+		auth_type := remote.Auth_Type.ValueString()
+		if auth_type == "" {
+			auth_type = "tls"
 		}
 
 		incusProviderRemoteConfig := provider_config.IncusProviderRemoteConfig{
-			Name:    remote.Name.ValueString(),
-			Token:   remote.Token.ValueString(),
-			Address: remote.Address.ValueString(),
-			Port:    port,
-			Scheme:  scheme,
+			Name:            remote.Name.ValueString(),
+			Address:         remote.Address.ValueString(),
+			Protocol:        protocol,
+			Auth_Type:       auth_type,
+			Default_Project: remote.Default_Project.ValueString(),
+			Public:          remote.Public.ValueBool(),
 		}
 
-		isDefault := remote.Default.ValueBool()
+		if data.Default_Remote.ValueString() == remote.Name.ValueString() {
+			isDefault = true
+		}
 		incusProvider.SetRemote(incusProviderRemoteConfig, isDefault)
 	}
 
