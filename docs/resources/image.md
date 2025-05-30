@@ -19,6 +19,28 @@ resource "incus_instance" "test1" {
 }
 ```
 
+## Image alias Example
+
+```hcl
+resource "incus_image" "alpine" {
+  source_image = {
+    remote = "images"
+    name   = "alpine/edge"
+  }
+
+  alias {
+    name        = "alpine"
+    description = "Alpine Linux"
+  }
+
+  alias {
+    name        = "alpine-edge"
+    description = "Alpine Linux Edge"
+  }
+}
+
+```
+
 ## Argument Reference
 
 * `source_file` - *Optional* - The image file from the local file system from which the image will be created. See reference below.
@@ -62,6 +84,11 @@ The `source_instance` block supports:
 * `name` - **Required** - Name of the source instance.
 
 * `snapshot`- *Optional* - Name of the snapshot of the source instance
+
+The `alias` block supports:
+
+* `name` - **Required** - The name of the alias.
+* `description` - *Optional* - A description for the alias.
 
 ## Attribute Reference
 
