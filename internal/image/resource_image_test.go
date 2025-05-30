@@ -418,6 +418,35 @@ func TestAccImage_sourceFileUnifiedImage(t *testing.T) {
 	})
 }
 
+func TestAccImage_alias_blocks(t *testing.T) {
+	alias1 := petname.Generate(2, "-")
+	alias2 := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccImage_aliasBlocks(alias1, alias2),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_image.img1", "source_image.remote", "images"),
+					resource.TestCheckResourceAttr("incus_image.img1", "source_image.name", "alpine/edge"),
+					resource.TestCheckResourceAttr("incus_image.img1", "alias.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img1", "alias.*", map[string]string{
+						"name":        alias1,
+						"description": "Test alias 1",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img1", "alias.*", map[string]string{
+						"name":        alias2,
+						"description": "Test alias 2",
+					}),
+					resource.TestCheckResourceAttr("incus_image.img1", "copied_aliases.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func testAccImage_basic() string {
 	return `
 resource "incus_image" "img1" {
@@ -745,4 +774,25 @@ resource "incus_image" "from_file" {
 }
 
 `, targetData, strings.Join(aliases, `","`))
+}
+
+func testAccImage_aliasBlocks(alias1, alias2 string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "img1" {
+ source_image = {
+   remote       = "images"
+   name         = "alpine/edge"
+ }
+
+ alias {
+   name        = "%s"
+   description = "Test alias 1"
+ }
+
+ alias {
+   name        = "%s"
+   description = "Test alias 2"
+ }
+}
+`, alias1, alias2)
 }
