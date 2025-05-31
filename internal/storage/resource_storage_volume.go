@@ -102,12 +102,13 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 			"content_type": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString("filesystem"),
 				PlanModifiers: []planmodifier.String{
+					contentTypeDefaultIfUndefined(types.StringValue("filesystem"), path.MatchRoot("source_volume"), path.MatchRoot("source_file")),
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("filesystem", "block"),
+					stringvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("source_volume")),
 				},
 			},
 
@@ -163,7 +164,7 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 					objectplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.Object{
-					objectvalidator.ConflictsWith(path.MatchRoot("source_file")),
+					objectvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("content_type")),
 				},
 			},
 
@@ -174,7 +175,7 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
-					stringvalidator.ConflictsWith(path.MatchRoot("source_volume")),
+					stringvalidator.ConflictsWith(path.MatchRoot("source_volume"), path.MatchRoot("content_type")),
 				},
 			},
 
@@ -548,12 +549,16 @@ func (r StorageVolumeResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ StorageVolumeModel) ComputedKeys() []string {
-	return []string{
+func (m StorageVolumeModel) ComputedKeys() []string {
+	keys := []string{
 		"block.filesystem",
 		"block.mount_options",
 		"volatile.",
 	}
+	if strings.HasSuffix(m.SourceFile.ValueString(), ".iso") {
+		keys = append(keys, "size")
+	}
+	return keys
 }
 
 func (_ StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceServer, poolName string) ([]string, error) {

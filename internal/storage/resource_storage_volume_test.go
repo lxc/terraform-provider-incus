@@ -240,7 +240,7 @@ func TestAccStorageVolume_sourceVolume(t *testing.T) {
 	})
 }
 
-func TestAccStorageVolume_sourceFile(t *testing.T) {
+func TestAccStorageVolume_sourceFileFilesystem(t *testing.T) {
 	poolName := petname.Generate(2, "-")
 	volumeName := petname.Generate(2, "-")
 
@@ -290,6 +290,116 @@ func TestAccStorageVolume_sourceFile(t *testing.T) {
 			},
 			{
 				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccStorageVolume_sourceFileBlock(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	// Create temporary directory for backup file in /tmp
+	tempDir := "/tmp/incus-volume-test"
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	backupFile := filepath.Join(tempDir, "backup.tar.gz")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+
+			// Create test volume
+			cmd := exec.Command("incus", "storage", "volume", "create", "default", "test_volume_create", "--type=block")
+			if err := cmd.Run(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Export volume backup
+			cmd = exec.Command("incus", "storage", "volume", "export", "default", "test_volume_create", backupFile)
+			if err := cmd.Run(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Delete test volume
+			cmd = exec.Command("incus", "storage", "volume", "delete", "default", "test_volume_create")
+			if err := cmd.Run(); err != nil {
+				t.Fatal(err)
+			}
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "source_file", backupFile),
+				),
+			},
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccStorageVolume_sourceFileIso(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	// Create temporary directory for backup file in /tmp
+	tempDir := "/tmp/incus-volume-test"
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	isoFile := filepath.Join(tempDir, "image.iso")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+
+			// Create ISO file with some null bytes
+			data := make([]byte, 256)
+			err := os.WriteFile(isoFile, data, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, isoFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "source_file", isoFile),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "content_type", "iso"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, isoFile),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
