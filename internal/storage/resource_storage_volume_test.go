@@ -3,7 +3,6 @@ package storage_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -240,44 +239,35 @@ func TestAccStorageVolume_sourceVolume(t *testing.T) {
 	})
 }
 
-func TestAccStorageVolume_sourceFile(t *testing.T) {
+func TestAccStorageVolume_sourceFileFilesystem(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
 	poolName := petname.Generate(2, "-")
+	sourceVolumeName := petname.Generate(2, "-")
 	volumeName := petname.Generate(2, "-")
 
-	// Create temporary directory for backup file in /tmp
-	tempDir := "/tmp/incus-volume-test"
-	err := os.MkdirAll(tempDir, 0755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	backupFile := filepath.Join(tempDir, "backup.tar.gz")
-
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			acctest.PreCheck(t)
-
-			// Create test volume
-			cmd := exec.Command("incus", "storage", "volume", "create", "default", "test_volume_create")
-			if err := cmd.Run(); err != nil {
-				t.Fatal(err)
-			}
-
-			// Export volume backup
-			cmd = exec.Command("incus", "storage", "volume", "export", "default", "test_volume_create", backupFile)
-			if err := cmd.Run(); err != nil {
-				t.Fatal(err)
-			}
-
-			// Delete test volume
-			cmd = exec.Command("incus", "storage", "volume", "delete", "default", "test_volume_create")
-			if err := cmd.Run(); err != nil {
-				t.Fatal(err)
-			}
-		},
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
 		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_sourceFileExportVolume(poolName, sourceVolumeName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", sourceVolumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "content_type", "filesystem"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove volume. Comment is required, since empty string is seen as zero value.
+			},
 			{
 				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
 				Check: resource.ComposeTestCheckFunc(
@@ -290,6 +280,103 @@ func TestAccStorageVolume_sourceFile(t *testing.T) {
 			},
 			{
 				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccStorageVolume_sourceFileBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
+	poolName := petname.Generate(2, "-")
+	sourceVolumeName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_sourceFileExportBlockVolume(poolName, sourceVolumeName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", sourceVolumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "content_type", "block"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "config.size", "1MiB"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove volume. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "source_file", backupFile),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "content_type", "block"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "config.size", "1MiB"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, backupFile),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccStorageVolume_sourceFileIso(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	tempDir := t.TempDir()
+	isoFile := filepath.Join(tempDir, "image.iso")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+
+			// Create ISO file with some null bytes
+			data := make([]byte, 256)
+			err := os.WriteFile(isoFile, data, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, isoFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "source_file", isoFile),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "content_type", "iso"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_sourceFile(poolName, volumeName, isoFile),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
@@ -418,6 +505,10 @@ resource "incus_storage_pool" "pool1" {
 resource "incus_storage_volume" "volume1" {
   name = "%[2]s"
   pool = incus_storage_pool.pool1.name
+
+  config = {
+    size = "1MiB"
+  }
 }
 
 resource "incus_storage_volume" "volume1_copy" {
@@ -433,17 +524,65 @@ resource "incus_storage_volume" "volume1_copy" {
 		poolName, volumeName)
 }
 
-func testAccStorageVolume_sourceFile(poolName, volumeName, sourceFile string) string {
+func testAccStorageVolume_sourceFileExportVolume(poolName, volumeName, backupFile string) string {
 	return fmt.Sprintf(`
 resource "incus_storage_pool" "pool1" {
-   name   = "%[1]s"
-   driver = "lvm"
+  name   = "%[1]s"
+  driver = "lvm"
 }
 
 resource "incus_storage_volume" "volume1" {
-   name = "%[2]s"
-   pool = incus_storage_pool.pool1.name
-   source_file = "%[3]s"
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+}
+
+resource "null_resource" "export_volume1" {
+  provisioner "local-exec" {
+    command = "incus storage volume export %[1]s ${incus_storage_volume.volume1.name} %[3]s"
+  }
+}
+`,
+		poolName, volumeName, backupFile)
+}
+
+func testAccStorageVolume_sourceFileExportBlockVolume(poolName, volumeName, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+  content_type = "block"
+
+  config = {
+    size = "1MiB"
+  }
+}
+
+resource "null_resource" "export_volume1" {
+  provisioner "local-exec" {
+    command = "incus storage volume export %[1]s ${incus_storage_volume.volume1.name} %[3]s"
+  }
+}
+`,
+		poolName, volumeName, backupFile)
+}
+
+func testAccStorageVolume_sourceFile(poolName, volumeName, sourceFile string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+  source_file = "%[3]s"
 }
 `,
 		poolName, volumeName, sourceFile)
