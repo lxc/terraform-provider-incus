@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -13,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -80,7 +80,16 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 			"description": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString(""),
+				PlanModifiers: []planmodifier.String{
+					common.SetDefaultStringIfAllUndefined(
+						types.StringValue(""),
+						path.MatchRoot("source_volume"),
+						path.MatchRoot("source_file"),
+					),
+				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("source_volume")),
+				},
 			},
 
 			"pool": schema.StringAttribute{
@@ -97,17 +106,25 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("source_volume")),
+				},
 			},
 
 			"content_type": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString("filesystem"),
 				PlanModifiers: []planmodifier.String{
+					common.SetDefaultStringIfAllUndefined(
+						types.StringValue("filesystem"),
+						path.MatchRoot("source_volume"),
+						path.MatchRoot("source_file"),
+					),
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("filesystem", "block"),
+					stringvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("source_volume")),
 				},
 			},
 
@@ -143,7 +160,16 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+				PlanModifiers: []planmodifier.Map{
+					common.SetDefaultMapIfAllUndefined(
+						types.MapValueMust(types.StringType, map[string]attr.Value{}),
+						path.MatchRoot("source_volume"),
+						path.MatchRoot("source_file"),
+					),
+				},
+				Validators: []validator.Map{
+					mapvalidator.ConflictsWith(path.MatchRoot("source_file"), path.MatchRoot("source_volume")),
+				},
 			},
 
 			"source_volume": schema.SingleNestedAttribute{
