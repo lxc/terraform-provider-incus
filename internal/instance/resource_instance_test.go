@@ -851,6 +851,7 @@ func TestAccInstance_sourceInstance(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_instance.instance2", "source_instance.name", sourceInstanceName),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "profiles.#", "1"),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "profiles.0", "default"),
+					resource.TestCheckResourceAttr("incus_instance.instance2", "config.limits.memory", "512MiB"),
 				),
 			},
 		},
@@ -917,6 +918,7 @@ func TestAccInstance_sourceFile(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "source_file", backupFile),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "config.limits.memory", "512MiB"),
 				),
 			},
 		},
@@ -1741,6 +1743,10 @@ resource "incus_instance" "instance1" {
   project = incus_project.project1.name
   name  = "%[2]s"
   image = "%[4]s"
+
+  config = {
+    "limits.memory" = "512MiB"
+  }
 }
 
 resource "incus_instance" "instance2" {
@@ -1798,6 +1804,10 @@ resource "incus_instance" "instance1" {
   image = "%[2]s"
 
   running = false
+
+  config = {
+    "limits.memory" = "512MiB"
+  }
 }
 
 resource "null_resource" "export_instance1" {
