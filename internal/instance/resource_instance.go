@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
@@ -19,10 +20,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -129,18 +128,38 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"description": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString(""),
+				PlanModifiers: []planmodifier.String{
+					common.SetDefaultStringIfAllUndefined(
+						types.StringValue(""),
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+					),
+				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+					),
+				},
 			},
 
 			"type": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString("container"),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					common.SetDefaultStringIfAllUndefined(
+						types.StringValue("container"),
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+					),
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("container", "virtual-machine"),
+					stringvalidator.ConflictsWith(
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+					),
 				},
 			},
 
@@ -151,11 +170,9 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(
-						path.Expressions{
-							path.MatchRoot("source_instance"),
-							path.MatchRoot("source_file"),
-							path.MatchRoot("architecture"),
-						}...,
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+						path.MatchRoot("architecture"),
 					),
 				},
 			},
@@ -166,6 +183,12 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:  booldefault.StaticBool(false),
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.Bool{
+					boolvalidator.ConflictsWith(
+						path.MatchRoot("source_file"),
+						path.MatchRoot("source_instance"),
+					),
 				},
 			},
 
@@ -184,6 +207,10 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Validators: []validator.List{
 					// Prevent empty values.
 					listvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+					listvalidator.ConflictsWith(
+						path.MatchRoot("source_file"),
+						path.MatchRoot("source_instance"),
+					),
 				},
 			},
 
@@ -219,9 +246,19 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+				PlanModifiers: []planmodifier.Map{
+					common.SetDefaultMapIfAllUndefined(
+						types.MapValueMust(types.StringType, map[string]attr.Value{}),
+						path.MatchRoot("source_instance"),
+						path.MatchRoot("source_file"),
+					),
+				},
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(configKeyValidator{}),
+					mapvalidator.ConflictsWith(
+						path.MatchRoot("source_file"),
+						path.MatchRoot("source_instance"),
+					),
 				},
 			},
 
@@ -242,12 +279,7 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.Object{
-					objectvalidator.ConflictsWith(
-						path.Expressions{
-							path.MatchRoot("source_file"),
-							path.MatchRoot("architecture"),
-						}...,
-					),
+					objectvalidator.ConflictsWith(path.MatchRoot("source_file")),
 				},
 			},
 
@@ -258,17 +290,7 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
-					stringvalidator.ConflictsWith(
-						path.Expressions{
-							path.MatchRoot("description"),
-							path.MatchRoot("type"),
-							path.MatchRoot("ephemeral"),
-							path.MatchRoot("profiles"),
-							path.MatchRoot("file"),
-							path.MatchRoot("config"),
-							path.MatchRoot("architecture"),
-						}...,
-					),
+					stringvalidator.ConflictsWith(path.MatchRoot("source_instance")),
 				},
 			},
 
@@ -281,6 +303,10 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 				Validators: []validator.String{
 					common.ArchitectureValidator{},
+					stringvalidator.ConflictsWith(
+						path.MatchRoot("source_file"),
+						path.MatchRoot("source_instance"),
+					),
 				},
 			},
 
