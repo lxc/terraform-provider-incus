@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -67,7 +66,15 @@ func (r StorageBucketResource) Schema(ctx context.Context, req resource.SchemaRe
 			"description": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Default:  stringdefault.StaticString(""),
+				PlanModifiers: []planmodifier.String{
+					common.SetDefaultStringIfAllUndefined(
+						types.StringValue(""),
+						path.MatchRoot("source_file"),
+					),
+				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("source_file")),
+				},
 			},
 
 			"pool": schema.StringAttribute{
@@ -109,7 +116,15 @@ func (r StorageBucketResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+				PlanModifiers: []planmodifier.Map{
+					common.SetDefaultMapIfAllUndefined(
+						types.MapValueMust(types.StringType, map[string]attr.Value{}),
+						path.MatchRoot("source_file"),
+					),
+				},
+				Validators: []validator.Map{
+					mapvalidator.ConflictsWith(path.MatchRoot("source_file")),
+				},
 			},
 
 			"source_file": schema.StringAttribute{
