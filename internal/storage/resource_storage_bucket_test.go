@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	petname "github.com/dustinkirkland/golang-petname"
@@ -121,6 +122,47 @@ func TestAccStorageBucket_importProject(t *testing.T) {
 	})
 }
 
+func TestAccStorageBucket_sourceFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
+	sourceBucketName := petname.Generate(2, "-")
+	bucketName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageBucket_sourceFileExportBucket(sourceBucketName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "name", sourceBucketName),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "pool", "default"),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "description", "Some description"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove bucket. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccStorageBucket_sourceFile(bucketName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "name", bucketName),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "pool", "default"),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "source_file", backupFile),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "description", "Some description"),
+				),
+			},
+		},
+	})
+}
+
 func testAccStorageBucket_basic(poolName string, bucketName string) string {
 	return fmt.Sprintf(`
 resource "incus_storage_pool" "pool1" {
@@ -160,4 +202,30 @@ resource "incus_storage_bucket" "bucket1" {
 	project = incus_project.project1.name
 }
 	`, projectName, bucketName)
+}
+
+func testAccStorageBucket_sourceFileExportBucket(bucketName string, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_bucket" "bucket1" {
+	name        = "%s"
+	pool        = "default"
+	description = "Some description"
+}
+
+resource "null_resource" "export_bucket1" {
+  provisioner "local-exec" {
+    command = "incus storage bucket export default ${incus_storage_bucket.bucket1.name} %s"
+  }
+}
+	`, bucketName, backupFile)
+}
+
+func testAccStorageBucket_sourceFile(bucketName string, sourceFile string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_bucket" "bucket1" {
+	name        = "%s"
+	pool        = "default"
+	source_file = "%s"
+}
+	`, bucketName, sourceFile)
 }
