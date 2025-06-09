@@ -124,9 +124,6 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 
 			"description": schema.StringAttribute{
@@ -752,7 +749,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	instanceName := plan.Name.ValueString()
+	instanceName := state.Name.ValueString()
 	instanceState, _, err := server.GetInstanceState(instanceName)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve state of instance %q", instanceName), err.Error())
@@ -886,6 +883,51 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 			err = common.InstanceFileUpload(server, instanceName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to instance %q", instanceName), err.Error())
+				return
+			}
+		}
+	}
+
+	// Rename instance
+	newInstanceName := plan.Name.ValueString()
+	if instanceName != newInstanceName {
+		renameInstance := api.InstancePost{
+			Name: newInstanceName,
+		}
+
+		// Get current instance state
+		instanceState, _, err := server.GetInstanceState(instanceName)
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve state of instance %q", instanceName), err.Error())
+			return
+		}
+
+		// Stop instance if it's running (required for rename operation)
+		if !isInstanceStopped(*instanceState) {
+			// Stop the instance gracefully.
+			_, diag := stopInstance(ctx, server, instanceName, false)
+			if diag != nil {
+				resp.Diagnostics.Append(diag)
+				return
+			}
+		}
+
+		opUpdate, err = server.RenameInstance(instanceName, renameInstance)
+		if err == nil {
+			// Wait for the instance to be updated.
+			err = opUpdate.Wait()
+		}
+
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to rename instance %q", newInstanceName), err.Error())
+			return
+		}
+
+		// Restore instance to its original running state if it was operational before rename
+		if isInstanceOperational(*instanceState) {
+			diag := startInstance(ctx, server, newInstanceName)
+			if diag != nil {
+				resp.Diagnostics.Append(diag)
 				return
 			}
 		}

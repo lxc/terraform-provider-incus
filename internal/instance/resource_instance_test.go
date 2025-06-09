@@ -1076,6 +1076,73 @@ func TestAccInstance_waitForIPv4AndIPv6(t *testing.T) {
 	})
 }
 
+func TestAccInstance_containerRename(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+	newInstanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// Test rename by changing the name attribute while keeping the same resource identifier.
+				// This verifies that the instance is renamed in-place rather than destroyed and recreated.
+				// The resource name "instance1" remains constant across both steps.
+				Config: testAccInstance_container(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "container"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "running", "false"),
+				),
+			},
+			{
+				Config: testAccInstance_container(newInstanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", newInstanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "container"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "running", "false"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_virtualMachineRename(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+	newInstanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckVirtualization(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// Test rename by changing the name attribute while keeping the same resource identifier.
+				// This verifies that the instance is renamed in-place rather than destroyed and recreated.
+				// The resource name "instance1" remains constant across both steps.
+				Config: testAccInstance_virtualMachine(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "virtual-machine"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+				),
+			},
+			{
+				Config: testAccInstance_virtualMachine(newInstanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", newInstanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "virtual-machine"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+				),
+			},
+		},
+	})
+}
+
 func testAccInstance_basic(name string, image string) string {
 	return fmt.Sprintf(`
 resource "incus_instance" "instance1" {
