@@ -33,6 +33,7 @@ jobs:
       INCUS_REMOTE: local
       INCUS_ADDR: localhost
       INCUS_PORT: 8443
+      INCUS_STORAGE_BUCKETS_PORT: 8444
       INCUS_GENERATE_CLIENT_CERTS: "true"
       INCUS_ACCEPT_SERVER_CERTIFICATE: "true"
       INCUS_SCHEME: https
@@ -62,6 +63,8 @@ jobs:
           incus remote add localhost "${INCUS_TOKEN}"
 
           incus remote add docker https://docker.io --protocol=oci
+
+          incus config set core.storage_buckets_address="$INCUS_ADDR:$INCUS_STORAGE_BUCKETS_PORT"
 
       - name: Configure OVN
         run: |
