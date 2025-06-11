@@ -970,6 +970,51 @@ func TestAccInstance_sourceFileWithStorage(t *testing.T) {
 	})
 }
 
+func TestAccInstance_sourceFile_fileUploadContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "backup.tar.gz")
+
+	sourceInstanceName := petname.Generate(2, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"null": {
+				Source:            "null",
+				VersionConstraint: ">= 3.0.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_sourceFileExportInstance(sourceInstanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", sourceInstanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "image", acctest.TestImage),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+				),
+			},
+			{
+				Config: `#`, // Empty config to remove instance. Comment is required, since empty string is seen as zero value.
+			},
+			{
+				Config: testAccInstance_sourceFile_fileUploadContent(instanceName, backupFile),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "source_file", backupFile),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.mode", "0644"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.content", "Hello, World!\n"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.target_path", "/foo/bar.txt"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.create_directories", "true"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_waitForAgent(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -1845,6 +1890,22 @@ resource "incus_instance" "instance1" {
   }
 
   running = true
+}
+`, instanceName, backupFile)
+}
+
+func testAccInstance_sourceFile_fileUploadContent(instanceName, backupFile string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%[1]s"
+  source_file = "%[2]s"
+
+  file {
+    content            = "Hello, World!\n"
+    target_path        = "/foo/bar.txt"
+    mode               = "0644"
+    create_directories = true
+  }
 }
 `, instanceName, backupFile)
 }
