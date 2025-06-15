@@ -49,9 +49,6 @@ resource "incus_image" "alpine" {
 
 * `source_instance` - *Optional* - The source instance from which the image will be created. See reference below.
 
-* `aliases` - *Optional* - A list of aliases to assign to the image after
-  pulling.
-
 * `project` - *Optional* - Name of the project where the image will be stored.
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
