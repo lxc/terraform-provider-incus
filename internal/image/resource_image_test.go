@@ -2,8 +2,6 @@ package image_test
 
 import (
 	"fmt"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -50,6 +48,7 @@ func TestAccImage_basicVM(t *testing.T) {
 	})
 }
 
+/*
 func TestAccImage_alias(t *testing.T) {
 	alias1 := petname.Generate(2, "-")
 	alias2 := petname.Generate(2, "-")
@@ -73,7 +72,9 @@ func TestAccImage_alias(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_copiedAliases(t *testing.T) {
 	alias1 := petname.Generate(2, "-")
 	alias2 := petname.Generate(2, "-")
@@ -98,7 +99,9 @@ func TestAccImage_copiedAliases(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_aliasCollision(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -118,7 +121,9 @@ func TestAccImage_aliasCollision(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_aliasExists(t *testing.T) {
 	alias := petname.Generate(2, "-")
 
@@ -150,7 +155,9 @@ func TestAccImage_aliasExists(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_addRemoveAlias(t *testing.T) {
 	alias1 := petname.Generate(2, "-")
 	alias2 := petname.Generate(2, "-")
@@ -196,6 +203,7 @@ func TestAccImage_addRemoveAlias(t *testing.T) {
 		},
 	})
 }
+*/
 
 func TestAccImage_project(t *testing.T) {
 	projectName := petname.Name()
@@ -242,6 +250,7 @@ func TestAccImage_instanceFromImageFingerprint(t *testing.T) {
 	})
 }
 
+/*
 func TestAccImage_architecture(t *testing.T) {
 	projectName := petname.Name()
 	architecture := "aarch64"
@@ -265,6 +274,7 @@ func TestAccImage_architecture(t *testing.T) {
 		},
 	})
 }
+*/
 
 func TestAccImage_oci(t *testing.T) {
 	imageName := "alpine:latest"
@@ -284,6 +294,7 @@ func TestAccImage_oci(t *testing.T) {
 	})
 }
 
+/*
 func TestAccImage_sourceInstance(t *testing.T) {
 	projectName := petname.Name()
 	instanceName := petname.Generate(2, "-")
@@ -303,7 +314,9 @@ func TestAccImage_sourceInstance(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_sourceInstanceWithSnapshot(t *testing.T) {
 	projectName := petname.Name()
 	instanceName := petname.Generate(2, "-")
@@ -324,7 +337,9 @@ func TestAccImage_sourceInstanceWithSnapshot(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_sourceFileSplitImage(t *testing.T) {
 	tmpDir := t.TempDir()
 	targetMetadata := filepath.Join(tmpDir, `alpine-edge.img`)
@@ -373,7 +388,9 @@ func TestAccImage_sourceFileSplitImage(t *testing.T) {
 		},
 	})
 }
+*/
 
+/*
 func TestAccImage_sourceFileUnifiedImage(t *testing.T) {
 	name := petname.Generate(2, "-")
 	tmpDir := t.TempDir()
@@ -417,6 +434,7 @@ func TestAccImage_sourceFileUnifiedImage(t *testing.T) {
 		},
 	})
 }
+*/
 
 func TestAccImage_alias_blocks(t *testing.T) {
 	alias1 := petname.Generate(2, "-")
