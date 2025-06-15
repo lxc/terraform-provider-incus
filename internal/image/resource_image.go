@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -19,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -41,7 +39,6 @@ type ImageModel struct {
 	SourceFile     types.Object `tfsdk:"source_file"`
 	SourceImage    types.Object `tfsdk:"source_image"`
 	SourceInstance types.Object `tfsdk:"source_instance"`
-	Aliases        types.Set    `tfsdk:"aliases"`
 	Alias          types.Set    `tfsdk:"alias"`
 	Project        types.String `tfsdk:"project"`
 	Remote         types.String `tfsdk:"remote"`
@@ -172,18 +169,6 @@ func (r ImageResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.RequiresReplace(),
-				},
-			},
-
-			"aliases": schema.SetAttribute{
-				Optional:    true,
-				ElementType: types.StringType,
-				Validators: []validator.Set{
-					// Prevent empty values.
-					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
-				},
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.RequiresReplace(),
 				},
 			},
 
@@ -360,14 +345,6 @@ func (r ImageResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	// Extract image metadata.
 	_, imageFingerprint := splitImageResourceID(plan.ResourceID.ValueString())
 
-	// Extract removed and added image aliases.
-	oldAliases, diags := ToAliasList(ctx, plan.Aliases)
-	resp.Diagnostics.Append(diags...)
-
-	newAliases := make([]string, 0, len(plan.Aliases.Elements()))
-	diags = req.State.GetAttribute(ctx, path.Root("aliases"), &newAliases)
-	resp.Diagnostics.Append(diags...)
-
 	// Extract old and new nested alias blocks
 	newAliasModels, diags := ToAliasModelList(ctx, plan.Alias)
 	resp.Diagnostics.Append(diags...)
@@ -388,29 +365,11 @@ func (r ImageResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	removed, added := utils.DiffSlices(oldAliases, newAliases)
-
-	// Combine all removals
-	allRemoved := append(removed, oldAliasBlocks...)
-
 	// Delete removed aliases.
-	for _, alias := range allRemoved {
+	for _, alias := range oldAliasBlocks {
 		err := server.DeleteImageAlias(alias)
 		if err != nil {
 			resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete alias %q for cached image with fingerprint %q", alias, imageFingerprint), err.Error())
-			return
-		}
-	}
-
-	// Add new aliases.
-	for _, alias := range added {
-		req := api.ImageAliasesPost{}
-		req.Name = alias
-		req.Target = imageFingerprint
-
-		err := server.CreateImageAlias(req)
-		if err != nil {
-			resp.Diagnostics.AddError(fmt.Sprintf("Failed to create alias %q for cached image with fingerprint %q", alias, imageFingerprint), err.Error())
 			return
 		}
 	}
@@ -510,9 +469,6 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 		}
 	}
 
-	configAliases, diags := ToAliasList(ctx, m.Aliases)
-	respDiags.Append(diags...)
-
 	copiedAliases, diags := ToAliasList(ctx, m.CopiedAliases)
 	respDiags.Append(diags...)
 
@@ -524,7 +480,7 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 	var aliases []string
 	var aliasBlocks []api.ImageAlias
 	for _, a := range image.Aliases {
-		if utils.ValueInSlice(a.Name, configAliases) || !utils.ValueInSlice(a.Name, copiedAliases) {
+		if !utils.ValueInSlice(a.Name, copiedAliases) {
 			if utils.ValueInSlice(a.Name, configAliasBlocks) {
 				aliasBlocks = append(aliasBlocks, a)
 			} else {
@@ -532,9 +488,6 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 			}
 		}
 	}
-
-	aliasSet, diags := ToAliasSetType(ctx, aliases)
-	respDiags.Append(diags...)
 
 	copiedAliasesSet, diags := ToAliasSetType(ctx, copiedAliases)
 	respDiags.Append(diags...)
@@ -544,7 +497,6 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 
 	m.Fingerprint = types.StringValue(image.Fingerprint)
 	m.CreatedAt = types.Int64Value(image.CreatedAt.Unix())
-	m.Aliases = aliasSet
 	m.CopiedAliases = copiedAliasesSet
 	m.Alias = aliasBlocksSet
 
@@ -643,34 +595,13 @@ func (r ImageResource) createImageFromSourceFile(ctx context.Context, resp *reso
 		image.Filename = createArgs.MetaName
 	}
 
-	aliases, diags := ToAliasList(ctx, plan.Aliases)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
 	aliasModels, diags := ToAliasModelList(ctx, plan.Alias)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	imageAliases := make([]api.ImageAlias, 0, len(aliases)+len(aliasModels))
-	for _, alias := range aliases {
-		// Ensure image alias does not already exist.
-		aliasTarget, _, _ := server.GetImageAlias(alias)
-		if aliasTarget != nil {
-			resp.Diagnostics.AddError(fmt.Sprintf("Image alias %q already exists", alias), "")
-			return
-		}
-
-		ia := api.ImageAlias{
-			Name: alias,
-		}
-
-		imageAliases = append(imageAliases, ia)
-	}
-
+	imageAliases := make([]api.ImageAlias, 0, len(aliasModels))
 	for _, aliasModel := range aliasModels {
 		// Ensure image alias does not already exist.
 		name := aliasModel.Name.ValueString()
@@ -791,34 +722,13 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		image = aliasTarget.Target
 	}
 
-	aliases, diags := ToAliasList(ctx, plan.Aliases)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
 	aliasModels, diags := ToAliasModelList(ctx, plan.Alias)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 
-	imageAliases := make([]api.ImageAlias, 0, len(aliases)+len(aliasModels))
-	for _, alias := range aliases {
-		// Ensure image alias does not already exist.
-		aliasTarget, _, _ := server.GetImageAlias(alias)
-		if aliasTarget != nil {
-			resp.Diagnostics.AddError(fmt.Sprintf("Image alias %q already exists", alias), "")
-			return
-		}
-
-		ia := api.ImageAlias{
-			Name: alias,
-		}
-
-		imageAliases = append(imageAliases, ia)
-	}
-
+	imageAliases := make([]api.ImageAlias, 0, len(aliasModels))
 	for _, aliasModel := range aliasModels {
 		// Ensure image alias does not already exist.
 		name := aliasModel.Name.ValueString()
@@ -929,13 +839,6 @@ func (r ImageResource) createImageFromSourceInstance(ctx context.Context, resp *
 		return
 	}
 
-	aliases, diags := ToAliasList(ctx, plan.Aliases)
-	resp.Diagnostics.Append(diags...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	aliasModels, diags := ToAliasModelList(ctx, plan.Alias)
 	resp.Diagnostics.Append(diags...)
 
@@ -943,22 +846,7 @@ func (r ImageResource) createImageFromSourceInstance(ctx context.Context, resp *
 		return
 	}
 
-	imageAliases := make([]api.ImageAlias, 0, len(aliases)+len(aliasModels))
-	for _, alias := range aliases {
-		// Ensure image alias does not already exist.
-		aliasTarget, _, _ := server.GetImageAlias(alias)
-		if aliasTarget != nil {
-			resp.Diagnostics.AddError(fmt.Sprintf("Image alias %q already exists", alias), "")
-			return
-		}
-
-		ia := api.ImageAlias{
-			Name: alias,
-		}
-
-		imageAliases = append(imageAliases, ia)
-	}
-
+	imageAliases := make([]api.ImageAlias, 0, len(aliasModels))
 	for _, aliasModel := range aliasModels {
 		// Ensure image alias does not already exist.
 		name := aliasModel.Name.ValueString()
