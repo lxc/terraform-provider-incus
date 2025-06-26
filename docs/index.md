@@ -36,18 +36,17 @@ can define all the remotes in the Provider config:
 provider "incus" {
   generate_client_certificates = true
   accept_remote_certificate    = true
+  default_remote               = "local"
 
   remote {
     name    = "local"
-    scheme  = "unix"
-    address = ""
+    address = "unix://"
     default = true
   }
 
   remote {
-    name    = "incus-remote"
-    scheme  = "https"
-    address = "10.1.2.8"
+    name    = "incus-server-2"
+    address = "https://10.1.2.8"
     token   = "token"
   }
 }
@@ -74,29 +73,27 @@ The following arguments are supported:
   also be set with the `INCUS_ACCEPT_SERVER_CERTIFICATE` environment variable.
   Defaults to `false`
 
+* `default_remote` - *Required* - The `name` of the default remote to use.
+	The specified remote will then be used when one is not specified in a resource.
+	If you choose to _not_ set a default_remote and do not specify
+	a remote in a resource, this provider will attempt to connect to an Incus
+	server running on the same host through the UNIX socket. See `Undefined Remote`
+	for more information.
+	The default can also be set with the `INCUS_REMOTE` Environment variable.
+
 The `remote` block supports:
 
-* `address` - *Optional* - The address of the Incus remote host when `schema` is
-  set to `https`. If `schema` is `unix` this will be the path to the local unix
-  socket, or leaving it as an empty string will use the default socket path.
+* `address` - *Optional* - The address of the Incus remote.
 
-* `default` - *Optional* - Whether this should be the default remote.
-  This remote will then be used when one is not specified in a resource.
-  Valid values are `true` and `false`.
-  If you choose to *not* set default=true on a `remote` and do not specify
-  a remote in a resource, this provider will attempt to connect to an Incus
-  server running on the same host through the UNIX socket. See `Undefined Remote`
-  for more information.
-  The default can also be set with the `INCUS_REMOTE` Environment variable.
+* `name` - *Required* - The name of the Incus remote.
 
-* `name` - *Optional* - The name of the Incus remote.
+* `protocol` - *Optional* - The server protocol to use. Valid values are `incus`,`oci`, or `simplestreams`.
+
+* `auth_type` - *Optional* - Server authentication type. Valid values are `tls` or `oidc`. ( Only for the `incus` protocol )
 
 * `token` - *Optional* - The one-time trust [token](https://linuxcontainers.org/incus/docs/main/authentication/#adding-client-certificates-using-tokens) used for initial authentication with the Incus remote.
 
-* `port` - *Optional* - The port of the Incus remote.
-
-* `scheme` - *Optional* Whether to connect to the Incus remote via `https` or
-  `unix` (UNIX socket). Defaults to `unix`.
+* `public` - *Optional* - Public image server. Valid values are `true` and `false`.
 
 ## Undefined Remote
 
@@ -111,9 +108,10 @@ The required variables are:
 
 * `INCUS_REMOTE` - The name of the remote.
 * `INCUS_ADDR` - The address of the Incus remote.
-* `INCUS_PORT` - The port of the Incus remote.
+* `INCUS_PROTOCOL` - The server protocol to use.
+* `INCUS_AUTHTYPE` - Server authentication type.
 * `INCUS_TOKEN` - The trust token of the Incus remote.
-* `INCUS_SCHEME` - The scheme to use (`unix` or `https`).
+* `INCUS_PUBLIC` - Public image server.
 
 ## PKI Support
 
