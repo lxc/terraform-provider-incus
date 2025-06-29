@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 
 	petname "github.com/dustinkirkland/golang-petname"
@@ -59,14 +58,19 @@ func TestAccImage_alias(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccImage_aliases(alias1, alias2),
+				Config: testAccImage_multipleAliases(alias1, alias2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.copy_aliases", "false"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.#", "2"),
-					resource.TestCheckTypeSetElemAttr("incus_image.img2", "aliases.*", alias1),
-					resource.TestCheckTypeSetElemAttr("incus_image.img2", "aliases.*", alias2),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias1,
+						"description": alias1,
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias2,
+						"description": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.img2", "copied_aliases.#", "0"),
 				),
 			},
@@ -88,10 +92,17 @@ func TestAccImage_copiedAliases(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_image.img3", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img3", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img3", "source_image.copy_aliases", "true"),
-					resource.TestCheckResourceAttr("incus_image.img3", "aliases.#", "3"),
-					resource.TestCheckTypeSetElemAttr("incus_image.img3", "aliases.*", "alpine/edge"),
-					resource.TestCheckTypeSetElemAttr("incus_image.img3", "aliases.*", alias1),
-					resource.TestCheckTypeSetElemAttr("incus_image.img3", "aliases.*", alias2),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img3", "alias.*", map[string]string{
+						"name": "alpine/edge",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img3", "alias.*", map[string]string{
+						"name":        alias1,
+						"description": alias1,
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img3", "alias.*", map[string]string{
+						"name":        alias2,
+						"description": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.img3", "copied_aliases.#", "4"),
 				),
 			},
@@ -110,8 +121,9 @@ func TestAccImage_aliasCollision(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_image.img4", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img4", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img4", "source_image.copy_aliases", "true"),
-					resource.TestCheckResourceAttr("incus_image.img4", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.img4", "aliases.0", "alpine/edge/amd64"),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img4", "alias.*", map[string]string{
+						"name": "alpine/edge/amd64",
+					}),
 					resource.TestCheckResourceAttr("incus_image.img4", "copied_aliases.#", "4"),
 				),
 			},
@@ -132,8 +144,10 @@ func TestAccImage_aliasExists(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_image.exists1", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.exists1", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.exists1", "source_image.copy_aliases", "false"),
-					resource.TestCheckResourceAttr("incus_image.exists1", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.exists1", "aliases.0", alias),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.exists1", "alias.*", map[string]string{
+						"name":        alias,
+						"description": alias,
+					}),
 					resource.TestCheckResourceAttr("incus_image.exists1", "copied_aliases.#", "0"),
 				),
 			},
@@ -143,8 +157,10 @@ func TestAccImage_aliasExists(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.exists1", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.exists1", "source_image.name", "alpine/edge"),
-					resource.TestCheckResourceAttr("incus_image.exists1", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.exists1", "aliases.0", alias),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.exists1", "alias.*", map[string]string{
+						"name":        alias,
+						"description": alias,
+					}),
 				),
 			},
 		},
@@ -160,36 +176,45 @@ func TestAccImage_addRemoveAlias(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccImage_aliases(alias1),
+				Config: testAccImage_alias(alias1),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.copy_aliases", "false"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.0", alias1),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias1,
+						"description": alias1,
+					}),
 					resource.TestCheckResourceAttr("incus_image.img2", "copied_aliases.#", "0"),
 				),
 			},
 			{
-				Config: testAccImage_aliases(alias1, alias2),
+				Config: testAccImage_multipleAliases(alias1, alias2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.copy_aliases", "false"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.#", "2"),
-					resource.TestCheckTypeSetElemAttr("incus_image.img2", "aliases.*", alias1),
-					resource.TestCheckTypeSetElemAttr("incus_image.img2", "aliases.*", alias2),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias1,
+						"description": alias1,
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias2,
+						"description": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.img2", "copied_aliases.#", "0"),
 				),
 			},
 			{
-				Config: testAccImage_aliases(alias2),
+				Config: testAccImage_alias(alias2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img2", "source_image.copy_aliases", "false"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.img2", "aliases.0", alias2),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img2", "alias.*", map[string]string{
+						"name":        alias2,
+						"description": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.img2", "copied_aliases.#", "0"),
 				),
 			},
@@ -211,7 +236,6 @@ func TestAccImage_project(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img1", "project", projectName),
-					resource.TestCheckNoResourceAttr("incus_image.img1", "aliases"),
 					resource.TestCheckResourceAttr("incus_image.img1", "copied_aliases.#", "0"),
 				),
 			},
@@ -258,7 +282,6 @@ func TestAccImage_architecture(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.name", "alpine/edge"),
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.architecture", architecture),
 					resource.TestCheckResourceAttr("incus_image.img1", "project", projectName),
-					resource.TestCheckNoResourceAttr("incus_image.img1", "aliases"),
 					resource.TestCheckResourceAttr("incus_image.img1", "copied_aliases.#", "0"),
 				),
 			},
@@ -296,8 +319,10 @@ func TestAccImage_sourceInstance(t *testing.T) {
 				Config: testAccImage_sourceInstance(projectName, instanceName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img1", "source_instance.name", instanceName),
-					resource.TestCheckResourceAttr("incus_image.img1", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.img1", "aliases.0", instanceName),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img1", "alias.*", map[string]string{
+						"name":        instanceName,
+						"description": instanceName,
+					}),
 				),
 			},
 		},
@@ -317,8 +342,10 @@ func TestAccImage_sourceInstanceWithSnapshot(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img1", "source_instance.name", instanceName),
 					resource.TestCheckResourceAttr("incus_image.img1", "source_instance.snapshot", "snap0"),
-					resource.TestCheckResourceAttr("incus_image.img1", "aliases.#", "1"),
-					resource.TestCheckResourceAttr("incus_image.img1", "aliases.0", instanceName),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.img1", "alias.*", map[string]string{
+						"name":        instanceName,
+						"description": instanceName,
+					}),
 				),
 			},
 		},
@@ -364,9 +391,13 @@ func TestAccImage_sourceFileSplitImage(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.data_path", targetData),
 					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.metadata_path", targetMetadata),
-					resource.TestCheckResourceAttr("incus_image.from_file", "aliases.#", "2"),
-					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias1),
-					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias2),
+					resource.TestCheckResourceAttr("incus_image.from_file", "alias.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.from_file", "alias.*", map[string]string{
+						"name": alias1,
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.from_file", "alias.*", map[string]string{
+						"name": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.from_file", "copied_aliases.#", "0"),
 				),
 			},
@@ -408,9 +439,12 @@ func TestAccImage_sourceFileUnifiedImage(t *testing.T) {
 				Config: testAccSourceFileUnifiedImage_fromFile(targetData, alias1, alias2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.data_path", targetData+".tar.gz"),
-					resource.TestCheckResourceAttr("incus_image.from_file", "aliases.#", "2"),
-					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias1),
-					resource.TestCheckTypeSetElemAttr("incus_image.from_file", "aliases.*", alias2),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.from_file", "alias.*", map[string]string{
+						"name": alias1,
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_image.from_file", "alias.*", map[string]string{
+						"name": alias2,
+					}),
 					resource.TestCheckResourceAttr("incus_image.from_file", "copied_aliases.#", "0"),
 				),
 			},
@@ -443,10 +477,18 @@ resource "incus_image" "img1vm" {
 	`
 }
 
-func testAccImage_aliases(aliases ...string) string {
+func testAccImage_multipleAliases(alias1, alias2 string) string {
 	return fmt.Sprintf(`
 resource "incus_image" "img2" {
-  aliases = ["%s"]
+  alias {
+    name = "%s"
+    description = "%s"
+  }
+
+  alias {
+    name = "%s"
+    description = "%s"
+  }
 
   source_image = {
     remote       = "images"
@@ -454,37 +496,16 @@ resource "incus_image" "img2" {
     copy_aliases = false
   }
 }
-	`, strings.Join(aliases, `","`))
+	`, alias1, alias1, alias2, alias2)
 }
 
-func testAccImage_aliasExists1(alias string) string {
+func testAccImage_alias(alias string) string {
 	return fmt.Sprintf(`
-resource "incus_image" "exists1" {
-  aliases = ["%s"]
-
-  source_image = {
-    remote       = "images"
-    name         = "alpine/edge"
-    copy_aliases = false
+resource "incus_image" "img2" {
+  alias {
+    name = "%s"
+    description = "%s"
   }
-}
-	`, alias)
-}
-
-func testAccImage_aliasExists2(alias string) string {
-	return fmt.Sprintf(`
-resource "incus_image" "exists1" {
-  aliases       = ["%s"]
-
-  source_image = {
-    remote       = "images"
-    name         = "alpine/edge"
-    copy_aliases = false
-  }
-}
-
-resource "incus_image" "exists2" {
-  aliases = ["%s"]
 
   source_image = {
     remote       = "images"
@@ -495,10 +516,69 @@ resource "incus_image" "exists2" {
 	`, alias, alias)
 }
 
-func testAccImage_copiedAliases(aliases ...string) string {
+func testAccImage_aliasExists1(alias string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "exists1" {
+  alias {
+    name        = "%s"
+	description = "%s"
+  } 
+
+  source_image = {
+    remote       = "images"
+    name         = "alpine/edge"
+    copy_aliases = false
+  }
+}
+	`, alias, alias)
+}
+
+func testAccImage_aliasExists2(alias string) string {
+	return fmt.Sprintf(`
+resource "incus_image" "exists1" {
+  alias {
+    name        = "%s"
+    description = "%s"
+  }       
+
+  source_image = {
+    remote       = "images"
+    name         = "alpine/edge"
+    copy_aliases = false
+  }
+}
+
+resource "incus_image" "exists2" {
+  alias {
+    name        = "%s"
+    description = "%s"
+  }       
+
+  source_image = {
+    remote       = "images"
+    name         = "alpine/edge"
+    copy_aliases = false
+  }
+}
+	`, alias, alias, alias, alias)
+}
+
+func testAccImage_copiedAliases(alias1, alias2 string) string {
 	return fmt.Sprintf(`
 resource "incus_image" "img3" {
-  aliases = ["alpine/edge","%s"]
+  alias {
+    name = "alpine/edge"
+  }
+
+  alias {
+    name        = "%s"
+    description = "%s"
+  }
+
+  alias {
+    name        = "%s"
+    description = "%s"
+  }
 
   source_image = {
     remote       = "images"
@@ -506,13 +586,15 @@ resource "incus_image" "img3" {
     copy_aliases = true
   }
 }
-	`, strings.Join(aliases, `","`))
+	`, alias1, alias1, alias2, alias2)
 }
 
 func testAccImage_aliasCollision() string {
 	return `
 resource "incus_image" "img4" {
-  aliases = ["alpine/edge/amd64"]
+  alias {
+    name = "alpine/edge/amd64"
+  }
 
   source_image = {
     remote       = "images"
@@ -622,10 +704,13 @@ resource "incus_instance" "instance1" {
 resource "incus_image" "img1" {
   project = incus_project.project1.name
 
-  aliases = [incus_instance.instance1.name]
+  alias {
+    name        = incus_instance.instance1.name
+    description = incus_instance.instance1.name
+  }
 
   source_instance = {
-    name    = incus_instance.instance1.name
+    name = incus_instance.instance1.name
   }
 }
 	`, projectName, instanceName, acctest.TestImage)
@@ -657,7 +742,10 @@ resource "incus_instance_snapshot" "snapshot1" {
 resource "incus_image" "img1" {
   project = incus_project.project1.name
 
-  aliases = [incus_instance.instance1.name]
+  alias {
+    name        = incus_instance.instance1.name
+    description = incus_instance.instance1.name
+  }
 
   source_instance = {
     name    = incus_instance.instance1.name
@@ -685,16 +773,23 @@ resource "null_resource" "export_img1" {
 `, target)
 }
 
-func testAccSourceFileSplitImage_fromFile(targetData, targetMetadata string, aliases ...string) string {
+func testAccSourceFileSplitImage_fromFile(targetData, targetMetadata string, alias1, alias2 string) string {
 	return fmt.Sprintf(`
 resource "incus_image" "from_file" {
   source_file = {
     data_path     = "%[1]s"
     metadata_path = "%[2]s"
   }
-  aliases = ["%[3]s"]
+
+  alias {
+    name = "%[3]s"
+  }
+
+  alias {
+    name = "%[4]s"
+  }
 }
-`, targetData, targetMetadata, strings.Join(aliases, `","`))
+`, targetData, targetMetadata, alias1, alias2)
 }
 
 func testAccSourceFileUnifiedImage_exportImage(name, targetData string) string {
@@ -735,14 +830,21 @@ resource "null_resource" "delete_instance1_image" {
 `, name, targetData)
 }
 
-func testAccSourceFileUnifiedImage_fromFile(targetData string, aliases ...string) string {
+func testAccSourceFileUnifiedImage_fromFile(targetData string, alias1, alias2 string) string {
 	return fmt.Sprintf(`
 resource "incus_image" "from_file" {
   source_file = {
     data_path = "%[1]s.tar.gz"
   }
-  aliases = ["%[2]s"]
+
+  alias {
+    name = "%[2]s"
+  }
+
+  alias {
+    name = "%[3]s"
+  }
 }
 
-`, targetData, strings.Join(aliases, `","`))
+`, targetData, alias1, alias2)
 }
