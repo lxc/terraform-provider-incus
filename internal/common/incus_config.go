@@ -124,6 +124,10 @@ func StripConfig(resConfig map[string]string, modelConfig types.Map, computedKey
 	for k, v := range usrConfig {
 		if v == nil {
 			config[k] = nil
+		} else if *v == "" {
+			// Preserve empty string values from user config
+			emptyStr := ""
+			config[k] = &emptyStr
 		}
 	}
 
