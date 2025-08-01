@@ -71,7 +71,7 @@ func (r StoragePoolResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("dir", "zfs", "lvm", "lvmcluster", "btrfs", "ceph", "cephfs", "cephobject"),
+					stringvalidator.OneOf("dir", "zfs", "lvm", "lvmcluster", "btrfs", "ceph", "cephfs", "cephobject", "linstor"),
 				},
 			},
 
@@ -369,6 +369,16 @@ func (_ StoragePoolModel) ComputedKeys(driver string) []string {
 		// TODO
 	case "cephobject":
 		// TODO
+	case "linstor":
+		keys = []string{
+			"source",
+			"linstor.resource_group.name",
+			"linstor.resource_group.place_count",
+			"linstor.resource_group.storage_pool",
+			"linstor.volume.prefix",
+			"drbd.auto_add_quorum_tiebreaker",
+			"drbd.on_no_quorum",
+		}
 	}
 
 	return append(keys, "volatile.")
