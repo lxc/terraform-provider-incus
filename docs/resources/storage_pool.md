@@ -53,7 +53,7 @@ for more details on how to create a storage pool in clustered mode.
 
 * `name`   - **Required** - Name of the storage pool.
 
-* `driver` - **Required** - Storage Pool driver. Must be one of `dir`, `zfs`, `lvm`, `lvmcluster`, `btrfs`, `ceph`, `cephfs`, or `cephobject`.
+* `driver` - **Required** - Storage Pool driver. Must be one of `dir`, `zfs`, `lvm`, `lvmcluster`, `btrfs`, `ceph`, `cephfs`, `cephobject` or `linstor`.
 
 * `description` - *Optional* - Description of the storage pool.
 
@@ -121,3 +121,11 @@ import {
   * driver == `zfs`
     * `size`
     * `source`
+  * driver == `linstor`
+    * `source`
+    * `linstor.resource_group.name`
+    * `linstor.resource_group.place_count`
+    * `linstor.resource_group.storage_pool`
+    * `linstor.volume.prefix`
+    * `drbd.auto_add_quorum_tiebreaker`
+    * `drbd.on_no_quorum`
