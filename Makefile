@@ -53,13 +53,13 @@ static-analysis:
 		echo "==> Running golangci-lint"; \
 		golangci-lint run --timeout 5m; \
 	else \
-		echo "Missing \"golangci-lint\" command, not linting .go" >&2; \
+		echo "Missing \"golangci-lint\" command, not linting .go" >&2; exit 1; \
 	fi
 	@if command -v terraform > /dev/null; then \
 		echo "==> Running terraform fmt"; \
 		terraform fmt -recursive -check -diff; \
 	else \
-		echo "Missing \"terraform\" command, not checking .tf format" >&2; \
+		echo "Missing \"terraform\" command, not checking .tf format" >&2; exit 1; \
 	fi
 
 .PHONY: update-gomod
