@@ -18,19 +18,22 @@ func TestAccServer_create_update_delete(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccServer1(configLoggingName),
+				PreConfig: func() { acctest.PreConfigAccTestServerConfig(t, true) }, // ensures, that "acctest-pre-existing.key" already exists in the config and that it remains after destroy.
+				Config:    testAccServer1(configUserName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.type", configLoggingName), "loki"),
-					resource.TestCheckResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.username", configLoggingName), "user"),
-					resource.TestCheckResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.password", configLoggingName), "password"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.create", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.update", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.remove", configUserName), "value"),
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), "config.user.acctest-pre-existing.key"), // pre existing, not managed through Terraform.
 				),
 			},
 			{
 				Config: testAccServer2(configUserName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.type", configLoggingName), "loki"),
-					resource.TestCheckResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.username", configLoggingName), "user_new"),
-					resource.TestCheckNoResourceAttr("incus_server.test", fmt.Sprintf("config.logging.%s.target.password", configLoggingName)),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.create", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.update", configUserName), "new_value"),
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.remove", configUserName)),
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), "config.user.acctest-pre-existing.key"), // pre existing, not managed through Terraform.
 				),
 			},
 		},
@@ -47,6 +50,57 @@ func TestAccServer_empty(t *testing.T) {
 resource "incus_server" "test" {
 }
 `,
+			},
+		},
+	})
+}
+
+func TestAccServer_create_overwrite_pre_existing(t *testing.T) {
+	configUserName := "acctest-" + petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() { acctest.PreConfigAccTestServerConfig(t, false) }, // ensures, that "user.acctest-pre-existing.key" already exists in the config. It is expected to be gone after the test.
+				Config:    testAccServerPreExisting(configUserName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.create", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.update", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.remove", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), "config.user.acctest-pre-existing.key", "new_value"), // pre existing, now managed through Terraform.
+				),
+			},
+		},
+	})
+}
+
+func TestAccServer_update_overwrite_pre_existing(t *testing.T) {
+	configUserName := "acctest-" + petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() { acctest.PreConfigAccTestServerConfig(t, false) }, // ensures, that "user.acctest-pre-existing.key" already exists in the config. It is expected to be gone after the test.
+				Config:    testAccServer1(configUserName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.create", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.update", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.remove", configUserName), "value"),
+					resource.TestCheckNoResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), "config.user.acctest-pre-existing.key"), // pre existing, not managed through Terraform.
+				),
+			},
+			{
+				Config: testAccServerPreExisting(configUserName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.create", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.update", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), fmt.Sprintf("config.user.%s.remove", configUserName), "value"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("incus_server.%s", configUserName), "config.user.acctest-pre-existing.key", "new_value"), // pre existing, now managed through Terraform.
+				),
 			},
 		},
 	})
@@ -71,6 +125,19 @@ resource "incus_server" "%[1]s" {
     "user.%[1]s.create"    = "value"
     "user.%[1]s.update"    = "new_value" // updated
     // "user.%[1]s.remove" = "value" // removed (commented out)
+  }
+}
+`, configLoggingName)
+}
+
+func testAccServerPreExisting(configLoggingName string) string {
+	return fmt.Sprintf(`
+resource "incus_server" "%[1]s" {
+  config = {
+    "user.%[1]s.create"             = "value"
+		"user.%[1]s.update"             = "value"
+    "user.%[1]s.remove"             = "value"
+    "user.acctest-pre-existing.key" = "new_value" // pre existing key, now managed through Terraform
   }
 }
 `, configLoggingName)
