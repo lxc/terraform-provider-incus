@@ -1,22 +1,42 @@
+version: "2"
 linters:
-  # TODO: remove the `disable` section
+  enable:
+    - godot
+    - misspell
+    - whitespace
   disable:
     - errcheck
     - ineffassign
     - staticcheck
     - unused
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
   enable:
-    - godot
+    - gci
     - gofmt
     - goimports
-    - misspell
-    - whitespace
-    - gci
-linters-settings:
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/lxc/terraform-provider-incus)
-  goimports:
-    local-prefixes: github.com/lxc/terraform-provider-incus
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/lxc/terraform-provider-incus)
+    goimports:
+      local-prefixes:
+        - github.com/lxc/terraform-provider-incus
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
