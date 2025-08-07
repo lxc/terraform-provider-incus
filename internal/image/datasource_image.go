@@ -141,7 +141,7 @@ func (d *ImageDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	project := state.Project.ValueString()
 	server, err := d.provider.InstanceServer(remote, project, "")
 	if err != nil {
-		resp.Diagnostics.Append(errors.NewImageServerError(err))
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
 		return
 	}
 
