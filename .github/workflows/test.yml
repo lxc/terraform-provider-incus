@@ -89,13 +89,6 @@ jobs:
 
           sudo systemctl restart incus
 
-      - name: Install dependencies
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_wrapper: false
       - run: |
           make test
 
@@ -136,6 +129,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - run: make fmtcheck
       - run: make vet
