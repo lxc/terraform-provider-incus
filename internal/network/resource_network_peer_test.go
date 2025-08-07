@@ -38,7 +38,7 @@ func TestAccNetworkPeer_basic(t *testing.T) {
 	})
 }
 
-// Creates a network peering
+// Creates a network peering.
 func testAccNetworkPeer_basic() string {
 	return fmt.Sprintf(`
 %s%s%s
@@ -92,7 +92,7 @@ func TestAccNetworkPeer_acrossProjects(t *testing.T) {
 	})
 }
 
-// Creates a network peering between projects
+// Creates a network peering between projects.
 func testAccNetworkPeer_acrossProjects() string {
 	return fmt.Sprintf(`
 %s%s%s%s%s

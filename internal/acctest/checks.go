@@ -130,7 +130,9 @@ func PreCheck_x86_64(t *testing.T) {
 // of a resource with the given name. This check should be used only for
 // debuging purposes.
 //
-// Example resource name: incus_profile.profile2
+// Example resource name:
+//
+//	incus_profile.profile2
 func PrintResourceState(t *testing.T, resName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[resName]

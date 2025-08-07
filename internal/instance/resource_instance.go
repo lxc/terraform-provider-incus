@@ -747,10 +747,10 @@ func (r InstanceResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 // Update updates the instance in the following order:
-// - Ensure instance state (stopped/running)
-// - Update configuration (config, devices, profiles)
-// - Upload files
-// - Run exec commands
+// - Ensure instance state (stopped/running).
+// - Update configuration (config, devices, profiles).
+// - Upload files.
+// - Run exec commands.
 func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan InstanceModel
 	var state InstanceModel
