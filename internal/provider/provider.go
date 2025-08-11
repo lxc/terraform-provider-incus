@@ -16,6 +16,7 @@ import (
 	incus_config "github.com/lxc/incus/v6/shared/cliconfig"
 	incus_shared "github.com/lxc/incus/v6/shared/util"
 
+	"github.com/lxc/terraform-provider-incus/internal/cluster"
 	"github.com/lxc/terraform-provider-incus/internal/clustering"
 	"github.com/lxc/terraform-provider-incus/internal/config"
 	"github.com/lxc/terraform-provider-incus/internal/image"
@@ -293,5 +294,6 @@ func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataS
 		image.NewImageDataSource,
 		profile.NewProfileDataSource,
 		project.NewProjectDataSource,
+		cluster.NewClusterDataSource,
 	}
 }
