@@ -58,6 +58,9 @@ static-analysis:
 	@if command -v terraform > /dev/null; then \
 		echo "==> Running terraform fmt"; \
 		terraform fmt -recursive -check -diff; \
+	elif command -v tofu > /dev/null; then \
+		echo "==> Running tofu fmt"; \
+		tofu fmt -recursive -check -diff; \
 	else \
 		echo "Missing \"terraform\" command, not checking .tf format" >&2; exit 1; \
 	fi
