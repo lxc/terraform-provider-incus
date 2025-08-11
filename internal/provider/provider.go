@@ -25,6 +25,7 @@ import (
 	"github.com/lxc/terraform-provider-incus/internal/profile"
 	"github.com/lxc/terraform-provider-incus/internal/project"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
+	"github.com/lxc/terraform-provider-incus/internal/server"
 	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
 
@@ -295,5 +296,6 @@ func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataS
 		profile.NewProfileDataSource,
 		project.NewProjectDataSource,
 		cluster.NewClusterDataSource,
+		server.NewServerDataSource,
 	}
 }
