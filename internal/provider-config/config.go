@@ -61,6 +61,12 @@ type IncusProviderConfig struct {
 
 	// This is a mutex used to handle concurrent reads/writes.
 	mux sync.RWMutex
+
+	// ServerResourceMux coordinates access to server resources, which can
+	// not be done concurrently within the same remote. The current implementation
+	// uses a global lock, which should be fine even with multiple remotes
+	// being managed from the same Terraform configuration.
+	ServerResourceMux sync.Mutex
 }
 
 // NewIncusProvider returns initialized Incus provider structure. This struct is

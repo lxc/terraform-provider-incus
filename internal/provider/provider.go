@@ -24,6 +24,7 @@ import (
 	"github.com/lxc/terraform-provider-incus/internal/profile"
 	"github.com/lxc/terraform-provider-incus/internal/project"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
+	"github.com/lxc/terraform-provider-incus/internal/server"
 	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
 
@@ -281,6 +282,7 @@ func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource 
 		network.NewNetworkZoneResource,
 		profile.NewProfileResource,
 		project.NewProjectResource,
+		server.NewServerResource,
 		storage.NewStorageBucketKeyResource,
 		storage.NewStorageBucketResource,
 		storage.NewStoragePoolResource,
