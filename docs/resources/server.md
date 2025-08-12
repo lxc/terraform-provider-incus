@@ -20,6 +20,40 @@ resource "incus_server" "test" {
 }
 ```
 
+## Example Usage with Local and Global Configurations
+
+```hcl
+locals {
+  remote = "cluster"
+  bgp_routerids = {
+    "node1" = "192.0.2.100"
+    "node2" = "192.0.2.101"
+    "node3" = "192.0.2.102"
+  }
+}
+
+resource "incus_server" "local" {
+  for_each = tomap(local.bgp_routerids)
+  remote = local.remote
+  target = each.key
+
+  config = {
+    "core.bgp_address" = ":179"
+    "core.bgp_routerid" = each.value
+  }
+}
+
+resource "incus_server" "global" {
+  remote = local.remote
+
+  config = {
+    "core.bgp_asn" = "65500"
+  }
+
+  depends_on = [ incus_server.local ]
+}
+```
+
 ## Argument Reference
 
 * `config` - *Optional* - Map of key/value pairs of
