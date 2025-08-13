@@ -16,6 +16,7 @@ type configKeyValidator struct{}
 func (v configKeyValidator) Description(ctx context.Context) string {
 	return fmt.Sprintf("config key cannot have %q or %q prefix", "volatile.", "image.")
 }
+
 func (v configKeyValidator) MarkdownDescription(ctx context.Context) string {
 	return fmt.Sprintf("config key cannot have `%s` or `%s` prefix", "volatile.", "image.")
 }
