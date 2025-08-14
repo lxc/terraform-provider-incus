@@ -1,9 +1,6 @@
 # incus_cluster
 
-Provides information about an Incus cluster. This resource supports
-clustered as well as non-clustered (standalone) setups and will treat them
-accordingly. Non-clustered setups will look like a cluster with a single member
-whose name is the empty string (`""`).
+Provides information about an Incus cluster.
 
 ## Example Usage
 
@@ -13,7 +10,7 @@ data "incus_cluster" "this" {
 }
 ```
 
-## Example prevent execution if any server is not online
+## Example prevent execution if any cluster member is not online
 
 ```hcl
 data "incus_cluster" "this" {
@@ -21,7 +18,7 @@ data "incus_cluster" "this" {
 
   lifecycle {
     postcondition {
-      condition     = alltrue([for name, member in self.members : member.status == "Online"])
+      condition     = alltrue(self.is_clustered ? [for i, v in self.members : v.status == "Online"] : [])
       error_message = "All servers must be online."
     }
   }
@@ -30,8 +27,8 @@ data "incus_cluster" "this" {
 
 ## Example create resource for each cluster member
 
-In this example, we define the server configuration `core.bgp_address`, which
-has scope `local`, on each cluster member.
+In this example, we define the server configuration [`core.bgp_address`](https://linuxcontainers.org/incus/docs/main/server_config/#core-configuration),
+ which has scope `local`, on each cluster member.
 
 ```hcl
 data "incus_cluster" "this" {}
@@ -60,8 +57,7 @@ above:
 * `is_clustered` - Whether this is a clustered setup.
 
 * `members`: A map of cluster members. The key is the member name and the value
-  is a member object. For non-clustered setups, the key of the sole member is
-  the empty string (`""`). For the member object see reference below.
+  is a member object. See reference below.
 
 The `member` block contains:
 
@@ -84,12 +80,4 @@ The `member` block contains:
 
 ## Notes
 
-* For non-clustered setups, the `members` attribute will contain a single entry
-  with the special key of empty string (`""`).
-  In this case, most of the attributes will be empty, except for `address`,
-  `architecture` and `status`.
-
-  The `address` is taken from the server's `cluster.http_address` config setting
-  and will be set to `https://<address>` if the setting is present, otherwise
-  it will be empty.
-  The `status` will be always set to `Online`.
+* For non-clustered setups, the `members` attribute will be `null`.
