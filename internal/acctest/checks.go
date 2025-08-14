@@ -105,6 +105,20 @@ func PreCheckClustering(t *testing.T) {
 	}
 }
 
+// PreCheckStandalone skips the test if Incus server is running
+// in clustered mode.
+func PreCheckStandalone(t *testing.T) {
+	p := testProvider()
+	server, err := p.InstanceServer("", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if server.IsClustered() {
+		t.Skipf("Test %q skipped. Incus server is running in clustered mode.", t.Name())
+	}
+}
+
 func PreCheck_x86_64(t *testing.T) {
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
