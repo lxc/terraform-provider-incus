@@ -117,40 +117,11 @@ func (d *ClusterDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	state.IsClustered = types.BoolValue(cluster.Enabled)
 
-	// fall back if not clustered
 	if !cluster.Enabled {
-		server, _, err := serverProvider.GetServer()
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to retrieve server environment (fall back for non cluster)", err.Error())
-			return
-		}
+		memberObjectType := getMemberObjectType()
+		nilMap := types.MapNull(memberObjectType)
 
-		// Use `cluster.https_address` as cluster member address, if defined.
-		address, ok := server.Config["cluster.https_address"]
-		if ok {
-			address = fmt.Sprintf("https://%s", address)
-		}
-
-		architecture := server.Environment.KernelArchitecture
-
-		members, diags := toMembersMapType(ctx, []clusterMemberItem{
-			{
-				address:       address,
-				architecture:  architecture,
-				description:   "",
-				failureDomain: "",
-				groups:        []string{},
-				name:          "",
-				roles:         []string{},
-				status:        "Online",
-			},
-		})
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		state.Members = members
+		state.Members = nilMap
 
 		diags = resp.State.Set(ctx, &state)
 		resp.Diagnostics.Append(diags...)
