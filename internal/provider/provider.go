@@ -301,5 +301,6 @@ func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataS
 		image.NewImageDataSource,
 		profile.NewProfileDataSource,
 		project.NewProjectDataSource,
+		storage.NewStoragePoolDataSource,
 	}
 }
