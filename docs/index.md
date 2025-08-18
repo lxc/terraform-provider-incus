@@ -61,7 +61,8 @@ The following arguments are supported:
   to. See the `remote` reference below for details.
 
 * `config_dir` - *Optional* - The directory to look for existing Incus
-  configuration. Defaults to `$HOME/.config/incus`
+  configuration. This can also be set with the `INCUS_CONF`
+  Environment variable. Defaults to `$HOME/.config/incus`
 
 * `generate_client_certificates` - *Optional* - Automatically generate the Incus
   client certificate if it does not exist. Valid values are `true` and `false`.
