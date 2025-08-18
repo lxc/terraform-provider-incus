@@ -89,7 +89,8 @@ The `remote` block supports:
   for more information.
   The default can also be set with the `INCUS_REMOTE` Environment variable.
 
-* `name` - *Optional* - The name of the Incus remote.
+* `name` - **Required** - Name of the Incus remote. Name is used to locate
+  server certificate if incus_scheme is set to `https`.
 
 * `token` - *Optional* - The one-time trust [token](https://linuxcontainers.org/incus/docs/main/authentication/#adding-client-certificates-using-tokens) used for initial authentication with the Incus remote.
 
