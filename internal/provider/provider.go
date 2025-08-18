@@ -146,6 +146,11 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	configDir := data.ConfigDir.ValueString()
 	if configDir == "" {
 		configDir = "$HOME/.config/incus"
+
+		v, ok := os.LookupEnv("INCUS_CONF")
+		if ok {
+			configDir = v
+		}
 	}
 	configDir = os.ExpandEnv(configDir)
 
