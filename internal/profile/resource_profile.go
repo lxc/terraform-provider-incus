@@ -69,6 +69,8 @@ func (r ProfileResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 
 			"project": schema.StringAttribute{
 				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(api.ProjectDefaultName),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -354,6 +356,12 @@ func (r ProfileResource) ImportState(ctx context.Context, req resource.ImportSta
 	if diag != nil {
 		resp.Diagnostics.Append(diag)
 		return
+	}
+
+	// If the imported profile does not specify the project, set the correct default value.
+	_, ok := fields["project"]
+	if !ok {
+		fields["project"] = api.ProjectDefaultName
 	}
 
 	for k, v := range fields {
