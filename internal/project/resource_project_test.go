@@ -113,7 +113,6 @@ func TestAccProject_updateConfig(t *testing.T) {
 	})
 }
 
-
 // force_destroy is tested by creating a project containing an untracked instance
 // and letting CheckDestroy verify that the project can be destroyed.
 func TestAccProject_forceDestroy(t *testing.T) {
@@ -284,5 +283,3 @@ removed {
 }
 `, name)
 }
-
-
