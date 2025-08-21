@@ -176,10 +176,12 @@ func TestAccNetwork_target(t *testing.T) {
 					// Since "count" is used to create the cluster_network_per_node resources, each resource
 					// is created the same, so it should be enough to just test one of them.
 					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "config.bridge.external_interfaces", "nosuchint"),
 					acctest.TestCheckResourceAttrInLookup("incus_network.cluster_network_per_node.0", "target", clusterMemberNames),
 
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network", "description", "clustered network description"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "type", "bridge"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "config.ipv4.address", "10.150.19.1/24"),
 				),
@@ -441,6 +443,7 @@ resource "incus_network" "cluster_network" {
   ]
 
   name = incus_network.cluster_network_per_node[0].name
+  description = "clustered network description"
   config = {
     "ipv4.address" = "10.150.19.1/24"
   }
