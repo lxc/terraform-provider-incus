@@ -216,14 +216,17 @@ func TestAccStoragePool_target(t *testing.T) {
 			{
 				Config: testAccStoragePool_target(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "name", poolName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "driver", driverName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "target", "node-1"),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "target", "node-2"),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", "clustered storage pool description"),
 				),
 			},
 		},
@@ -359,8 +362,9 @@ resource "incus_storage_pool" "storage_pool1" {
     incus_storage_pool.storage_pool1_node2,
   ]
 
-  name   = "%[1]s"
-  driver = "%[2]s"
+  name        = "%[1]s"
+  driver      = "%[2]s"
+  description = "clustered storage pool description"
 }
 	`, name, driver)
 }
