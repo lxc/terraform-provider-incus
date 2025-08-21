@@ -22,6 +22,7 @@ func TestAccStoragePool_dir(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 					// Ensure computed keys are not tracked.
@@ -33,6 +34,7 @@ func TestAccStoragePool_dir(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 				),
@@ -53,6 +55,7 @@ func TestAccStoragePool_zfs(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 					// Ensure computed keys are not tracked.
@@ -66,6 +69,7 @@ func TestAccStoragePool_zfs(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 				),
@@ -86,6 +90,7 @@ func TestAccStoragePool_lvm(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 					// Ensure computed keys are not tracked.
@@ -100,6 +105,7 @@ func TestAccStoragePool_lvm(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 				),
@@ -120,6 +126,7 @@ func TestAccStoragePool_btrfs(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 					// Ensure computed keys are not tracked.
@@ -132,6 +139,7 @@ func TestAccStoragePool_btrfs(t *testing.T) {
 				Config: testAccStoragePool(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "config.%", "0"),
 				),
@@ -216,14 +224,18 @@ func TestAccStoragePool_target(t *testing.T) {
 			{
 				Config: testAccStoragePool_target(poolName, driverName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "name", poolName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "driver", driverName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "target", "node-1"),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "target", "node-2"),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", "clustered storage pool description"),
 				),
 			},
 		},
@@ -303,8 +315,9 @@ func TestAccStoragePool_importProject(t *testing.T) {
 func testAccStoragePool(name string, driver string) string {
 	return fmt.Sprintf(`
 resource "incus_storage_pool" "storage_pool1" {
-  name   = "%s"
-  driver = "%s"
+  name        = "%s"
+  driver      = "%s"
+  description = "%[1]s"
 }
 	`, name, driver)
 }
@@ -359,8 +372,9 @@ resource "incus_storage_pool" "storage_pool1" {
     incus_storage_pool.storage_pool1_node2,
   ]
 
-  name   = "%[1]s"
-  driver = "%[2]s"
+  name        = "%[1]s"
+  driver      = "%[2]s"
+  description = "clustered storage pool description"
 }
 	`, name, driver)
 }
