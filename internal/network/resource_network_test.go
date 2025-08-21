@@ -168,9 +168,11 @@ func TestAccNetwork_target(t *testing.T) {
 				Config: testAccNetwork_target(networkName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "target", "node-1"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "config.bridge.external_interfaces", "nosuchint"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "target", "node-2"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "config.bridge.external_interfaces", "nosuchint"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "name", networkName),
@@ -434,7 +436,8 @@ resource "incus_network" "cluster_network" {
     incus_network.cluster_network_node2,
   ]
 
-  name = incus_network.cluster_network_node1.name
+  name        = incus_network.cluster_network_node1.name
+  description = "clustered network description"
   config = {
     "ipv4.address" = "10.150.19.1/24"
   }
