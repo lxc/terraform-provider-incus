@@ -55,7 +55,7 @@ for more details on how to create a storage pool in clustered mode.
 
 * `driver` - **Required** - Storage Pool driver. Must be one of `dir`, `zfs`, `lvm`, `lvmcluster`, `btrfs`, `ceph`, `cephfs`, `cephobject` or `linstor`.
 
-* `description` - *Optional* - Description of the storage pool.
+* `description` - *Optional* - Description of the storage pool. `description` is mutual exclusive with `target`. The `description` can only be set on cluster level (with `target` not set) or on non-clustered setups.
 
 * `config` - *Optional* - Map of key/value pairs of
   [storage pool config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/).

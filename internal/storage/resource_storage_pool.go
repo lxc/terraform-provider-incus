@@ -63,6 +63,9 @@ func (r StoragePoolResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(""),
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("target")),
+				},
 			},
 
 			"driver": schema.StringAttribute{
@@ -320,9 +323,15 @@ func (r StoragePoolResource) SyncState(ctx context.Context, tfState *tfsdk.State
 	respDiags.Append(diags...)
 
 	m.Name = types.StringValue(pool.Name)
-	m.Description = types.StringValue(pool.Description)
 	m.Driver = types.StringValue(pool.Driver)
 	m.Config = config
+
+	// target and description are mutual exclusive, but description might be
+	// set by the cluster level resource (without target) and is then returned
+	// by the API also for requests using target.
+	if m.Target.IsUnknown() || m.Target.IsNull() {
+		m.Description = types.StringValue(pool.Description)
+	}
 
 	if respDiags.HasError() {
 		return respDiags

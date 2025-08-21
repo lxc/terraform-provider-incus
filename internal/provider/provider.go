@@ -97,7 +97,7 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							Required:    true,
-							Description: "Name of the Incus remote. Required when incus_scheme set to https, to enable locating server certificate.",
+							Description: "Name of the Incus remote. Name is used to locate server certificate if incus_scheme is set to \"https\".",
 						},
 
 						"address": schema.StringAttribute{
@@ -146,6 +146,11 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	configDir := data.ConfigDir.ValueString()
 	if configDir == "" {
 		configDir = "$HOME/.config/incus"
+
+		v, ok := os.LookupEnv("INCUS_CONF")
+		if ok {
+			configDir = v
+		}
 	}
 	configDir = os.ExpandEnv(configDir)
 
