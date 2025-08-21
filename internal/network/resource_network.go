@@ -66,6 +66,9 @@ func (r NetworkResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(""),
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("target")),
+				},
 			},
 
 			"type": schema.StringAttribute{
@@ -375,10 +378,16 @@ func (r NetworkResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 	respDiags.Append(diags...)
 
 	m.Name = types.StringValue(network.Name)
-	m.Description = types.StringValue(network.Description)
 	m.Managed = types.BoolValue(network.Managed)
 	m.Type = types.StringValue(network.Type)
 	m.Config = config
+
+	// target and description are mutual exclusive, but description might be
+	// set by the cluster level resource (without target) and is then returned
+	// by the API also for requests using target.
+	if m.Target.IsUnknown() || m.Target.IsNull() {
+		m.Description = types.StringValue(network.Description)
+	}
 
 	if respDiags.HasError() {
 		return respDiags
