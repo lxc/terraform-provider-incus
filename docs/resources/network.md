@@ -182,7 +182,7 @@ for more details on how to create a network in clustered mode.
 * `name` - **Required** - Name of the network. This is usually the device the
   network will appear as to instances.
 
-* `description` - *Optional* - Description of the network.
+* `description` - *Optional* - Description of the network. `description` is mutual exclusive with `target`. The `description` can only be set on cluster level (with `target` not set) or on non-clustered setups.
 
 * `type` - *Optional* - The type of network to create. Can be one of: bridge,
   macvlan, sriov, ovn, or physical. If no type is specified, a bridge network
