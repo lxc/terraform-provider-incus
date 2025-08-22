@@ -158,3 +158,44 @@ func PrintResourceState(t *testing.T, resName string) resource.TestCheckFunc {
 		return nil
 	}
 }
+
+// TestCheckGetClusterMemberNames populates the provided targetClusterMemberNames
+// map with the names of the cluster members detected by the incus_cluster data
+// source addressed by "name".
+func TestCheckGetClusterMemberNames(t *testing.T, name string, targetClusterMembers map[string]struct{}) resource.TestCheckFunc {
+	t.Helper()
+
+	return func(s *terraform.State) error {
+		ms := s.RootModule()
+
+		rs, ok := ms.Resources[name]
+		if !ok {
+			return fmt.Errorf("Not found: %s in %s", name, ms.Path)
+		}
+
+		if rs.Type != "incus_cluster" {
+			return fmt.Errorf("TestCheckGetClusterMembers can only be used with data souce incus_cluster")
+		}
+
+		is := rs.Primary
+		if is == nil {
+			return fmt.Errorf("No primary instance: %s in %s", name, ms.Path)
+		}
+
+		for k := range is.Attributes {
+			if !strings.HasPrefix(k, "members.") {
+				continue
+			}
+
+			parts := strings.Split(k, ".")
+
+			if parts[1] == "%" {
+				continue
+			}
+
+			targetClusterMembers[parts[1]] = struct{}{}
+		}
+
+		return nil
+	}
+}

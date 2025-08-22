@@ -214,6 +214,8 @@ func TestAccStoragePool_target(t *testing.T) {
 	poolName := petname.Generate(2, "-")
 	driverName := "dir"
 
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
+
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.PreCheck(t)
@@ -223,16 +225,28 @@ func TestAccStoragePool_target(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccStoragePool_target(poolName, driverName),
+
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "name", poolName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", poolName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "driver", driverName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "target", "node-1"),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node1", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "name", poolName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "driver", driverName),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "target", "node-2"),
-					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_node2", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
+					// Since "count" is used to create the storage_pool1_per_node resources, each resource
+					// is created the same, so it should be enough to just test one of them.
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_per_node.0", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_per_node.0", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
+					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_per_node.0", "driver", driverName),
+					resource.TestCheckResourceAttrSet("incus_storage_pool.storage_pool1_per_node.0", "target"),
+					resource.TestCheckResourceAttrWith("incus_storage_pool.storage_pool1_per_node.0", "target", func(value string) error {
+						// Ensure target is one of the cluster member names.
+						_, ok := clusterMemberNames[value]
+						if !ok {
+							return fmt.Errorf("value %q not found in list of cluster members (%v)", value, clusterMemberNames)
+						}
+
+						return nil
+					}),
+
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "description", "clustered storage pool description"),
@@ -354,27 +368,30 @@ resource "incus_storage_pool" "storage_pool1" {
 
 func testAccStoragePool_target(name, driver string) string {
 	return fmt.Sprintf(`
-resource "incus_storage_pool" "storage_pool1_node1" {
-  name   = "%[1]s"
-  driver = "%[2]s"
-  target = "node-1"
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
 }
 
-resource "incus_storage_pool" "storage_pool1_node2" {
+resource "incus_storage_pool" "storage_pool1_per_node" {
+  // Unfortunately, the terraform plugin test framework does not support
+	// "for_each", so we need to use "count" as an alternative.
+  count = length(local.member_names)
+
   name   = "%[1]s"
   driver = "%[2]s"
-  target = "node-2"
+  target = local.member_names[count.index]
 }
 
 resource "incus_storage_pool" "storage_pool1" {
   depends_on = [
-    incus_storage_pool.storage_pool1_node1,
-    incus_storage_pool.storage_pool1_node2,
+    incus_storage_pool.storage_pool1_per_node,
   ]
 
   name        = "%[1]s"
   driver      = "%[2]s"
   description = "clustered storage pool description"
 }
-	`, name, driver)
+`, name, driver)
 }
