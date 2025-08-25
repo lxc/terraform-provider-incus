@@ -2,6 +2,7 @@ package acctest
 
 import (
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -13,10 +14,54 @@ import (
 )
 
 // TestImage is a constant that specifies the default image used in all tests.
-const TestImage = "images:alpine/edge/amd64"
+var TestImage = "images:alpine/edge/default/amd64"
 
-var testProviderConfig *provider_config.IncusProviderConfig
-var testProviderMutex sync.Mutex
+// Updating TestImage architecture is best effort, on error just keep the default value.
+func init() {
+	p := testProvider()
+	server, err := p.InstanceServer("", "", "")
+	if err != nil {
+		return
+	}
+
+	apiServer, _, err := server.GetServer()
+	if err != nil {
+		return
+	}
+
+	if apiServer.Environment.KernelArchitecture == "x86_64" {
+		// Short circuit, default test image is already a fit.
+		return
+	}
+
+	imageServer, err := p.ImageServer("images")
+	if err != nil {
+		return
+	}
+
+	images, err := imageServer.GetImages()
+	if err != nil {
+		return
+	}
+
+	for _, image := range images {
+		if image.Architecture != apiServer.Environment.KernelArchitecture {
+			continue
+		}
+
+		for _, alias := range image.Aliases {
+			if strings.HasPrefix(alias.Name, "alpine/edge/default/") {
+				TestImage = "images:" + alias.Name
+				return
+			}
+		}
+	}
+}
+
+var (
+	testProviderConfig *provider_config.IncusProviderConfig
+	testProviderMutex  sync.Mutex
+)
 
 // testProvider returns an IncusProviderConfig that is initialized with default
 // Incus config.
