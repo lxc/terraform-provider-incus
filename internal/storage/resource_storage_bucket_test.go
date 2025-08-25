@@ -33,7 +33,11 @@ func TestAccStorageBucket_basic(t *testing.T) {
 }
 
 func TestAccStorageBucket_target(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	driverName := "dir"
 	bucketName := petname.Generate(2, "-")
+
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -43,10 +47,15 @@ func TestAccStorageBucket_target(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccStorageBucket_target(bucketName),
+				Config: testAccStorageBucket_target(poolName, driverName, bucketName),
 				Check: resource.ComposeTestCheckFunc(
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "name", bucketName),
-					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "pool", "default"),
+					resource.TestCheckResourceAttr("incus_storage_bucket.bucket1", "pool", poolName),
+					acctest.TestCheckResourceAttrInLookup("incus_storage_bucket.bucket1", "target", clusterMemberNames),
 				),
 			},
 		},
@@ -177,14 +186,39 @@ resource "incus_storage_bucket" "bucket1" {
 	`, poolName, bucketName)
 }
 
-func testAccStorageBucket_target(bucketName string) string {
+func testAccStorageBucket_target(poolName string, driverName, bucketName string) string {
 	return fmt.Sprintf(`
-resource "incus_storage_bucket" "bucket1" {
-	name    = "%s"
-	pool    = "default"
-	target = "node-2"
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
 }
- 	`, bucketName)
+
+resource "incus_storage_pool" "storage_pool1_per_node" {
+  // Unfortunately, the terraform plugin test framework does not support
+  // "for_each", so we need to use "count" as an alternative.
+  count = length(local.member_names)
+
+  name   = "%[1]s"
+  driver = "%[2]s"
+  target = local.member_names[count.index]
+}
+
+resource "incus_storage_pool" "storage_pool1" {
+  depends_on = [
+    incus_storage_pool.storage_pool1_per_node,
+  ]
+
+  name   = "%[1]s"
+  driver = "%[2]s"
+}
+
+resource "incus_storage_bucket" "bucket1" {
+  name   = "%[3]s"
+  pool   = incus_storage_pool.storage_pool1.name
+  target = local.member_names[0]
+}
+`, poolName, driverName, bucketName)
 }
 
 func testAccStorageBucket_project(projectName string, bucketName string) string {
