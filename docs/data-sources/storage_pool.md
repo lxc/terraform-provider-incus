@@ -22,7 +22,7 @@ resource "incus_storage_volume" "small" {
 ## Argument Reference
 
 * `name` - **Required** - Name of the storage pool.
-* 
+
 * `project` - *Optional* - Name of the project where the storage pool is be stored.
 
 * `remote` - *Optional* - The remote in which the resource was created. If
@@ -33,7 +33,7 @@ resource "incus_storage_volume" "small" {
 ## Attribute Reference
 
 * `description` - Description of the storage pool.
-* 
+
 * `driver` - Storage Pool driver.
 
 * `config` - *Optional* - Map of key/value pairs of
