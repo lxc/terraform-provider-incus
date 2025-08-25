@@ -376,7 +376,7 @@ locals {
 
 resource "incus_storage_pool" "storage_pool1_per_node" {
   // Unfortunately, the terraform plugin test framework does not support
-	// "for_each", so we need to use "count" as an alternative.
+  // "for_each", so we need to use "count" as an alternative.
   count = length(local.member_names)
 
   name   = "%[1]s"
