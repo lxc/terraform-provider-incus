@@ -67,7 +67,11 @@ func TestAccStorageVolume_instanceAttach(t *testing.T) {
 }
 
 func TestAccStorageVolume_target(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	driverName := "dir"
 	volumeName := petname.Generate(2, "-")
+
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -77,11 +81,15 @@ func TestAccStorageVolume_target(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccStorageVolume_target(volumeName),
+				Config: testAccStorageVolume_target(poolName, driverName, volumeName),
 				Check: resource.ComposeTestCheckFunc(
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
-					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", "default"),
-					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "target", "node-2"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					acctest.TestCheckResourceAttrInLookup("incus_storage_volume.volume1", "target", clusterMemberNames),
 				),
 			},
 		},
@@ -357,7 +365,7 @@ func TestAccStorageVolume_sourceFileIso(t *testing.T) {
 
 			// Create ISO file with some null bytes
 			data := make([]byte, 256)
-			err := os.WriteFile(isoFile, data, 0644)
+			err := os.WriteFile(isoFile, data, 0o644)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -431,14 +439,39 @@ resource "incus_instance" "instance1" {
 	`, poolName, volumeName, instanceName, acctest.TestImage)
 }
 
-func testAccStorageVolume_target(volumeName string) string {
+func testAccStorageVolume_target(poolName string, driverName string, volumeName string) string {
 	return fmt.Sprintf(`
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
+}
+
+resource "incus_storage_pool" "storage_pool1_per_node" {
+  // Unfortunately, the terraform plugin test framework does not support
+  // "for_each", so we need to use "count" as an alternative.
+  count = length(local.member_names)
+
+  name   = "%[1]s"
+  driver = "%[2]s"
+  target = local.member_names[count.index]
+}
+
+resource "incus_storage_pool" "storage_pool1" {
+  depends_on = [
+    incus_storage_pool.storage_pool1_per_node,
+  ]
+
+  name   = "%[1]s"
+  driver = "%[2]s"
+}
+
 resource "incus_storage_volume" "volume1" {
   name   = "%s"
-  pool   = "default"
-  target = "node-2"
+  pool   = incus_storage_pool.storage_pool1.name
+  target = local.member_names[0]
 }
-	`, volumeName)
+`, poolName, driverName, volumeName)
 }
 
 func testAccStorageVolume_project(projectName, volumeName string) string {

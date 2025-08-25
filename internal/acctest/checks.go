@@ -199,3 +199,18 @@ func TestCheckGetClusterMemberNames(t *testing.T, name string, targetClusterMemb
 		return nil
 	}
 }
+
+// TestCheckResourceAttrInLookup ensures a value stored in state for the given
+// name and key combination, is checked against a lookup map.
+// This check is successful, if in the lookup map a key for the state value
+// exists.
+func TestCheckResourceAttrInLookup(name string, key string, lookup map[string]struct{}) resource.TestCheckFunc {
+	return resource.TestCheckResourceAttrWith(name, key, func(value string) error {
+		_, ok := lookup[value]
+		if !ok {
+			return fmt.Errorf("value %q not found in lookup (%v)", value, lookup)
+		}
+
+		return nil
+	})
+}

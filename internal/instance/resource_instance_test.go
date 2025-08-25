@@ -690,6 +690,8 @@ func TestAccInstance_accessInterface(t *testing.T) {
 func TestAccInstance_target(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
+
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.PreCheck(t)
@@ -698,16 +700,21 @@ func TestAccInstance_target(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccInstance_target(instanceName, "node-2"),
+				Config: testAccInstance_target(instanceName),
 				Check: resource.ComposeTestCheckFunc(
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_instance.instance1", "name", fmt.Sprintf("%s-1", instanceName)),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "image", acctest.TestImage),
-					resource.TestCheckResourceAttr("incus_instance.instance1", "target", "node-2"),
+					acctest.TestCheckResourceAttrInLookup("incus_instance.instance1", "target", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_instance.instance2", "name", fmt.Sprintf("%s-2", instanceName)),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "status", "Running"),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "image", acctest.TestImage),
-					resource.TestCheckResourceAttr("incus_instance.instance2", "target", "node-2"),
+					acctest.TestCheckResourceAttrInLookup("incus_instance.instance2", "target", clusterMemberNames),
 				),
 			},
 		},
@@ -1709,20 +1716,28 @@ resource "incus_instance" "instance1" {
 	`, networkName, instanceName, acctest.TestImage)
 }
 
-func testAccInstance_target(name string, target string) string {
+func testAccInstance_target(name string) string {
 	return fmt.Sprintf(`
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
+}
+
 resource "incus_instance" "instance1" {
   name   = "%[1]s-1"
-  image  = "%[3]s"
-  target = "%[2]s"
+  image  = "%[2]s"
+  target = local.member_names[0] // first cluster member
 }
 
 resource "incus_instance" "instance2" {
   name   = "%[1]s-2"
-  image  = "%[3]s"
-  target = "%[2]s"
+  image  = "%[2]s"
+  // Using "length(local.member_names) - 1" instead of "-1", since negative indices
+  // are broken in tofu 1.10.5: https://github.com/hashicorp/terraform/issues/36369
+  target = element(tolist(local.member_names), length(local.member_names) - 1) // last cluster member
 }
-	`, name, target, acctest.TestImage)
+	`, name, acctest.TestImage)
 }
 
 func testAccInstance_project(projectName string, instanceName string) string {

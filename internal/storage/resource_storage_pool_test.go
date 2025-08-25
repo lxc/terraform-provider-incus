@@ -237,15 +237,7 @@ func TestAccStoragePool_target(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_per_node.0", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1_per_node.0", "driver", driverName),
 					resource.TestCheckResourceAttrSet("incus_storage_pool.storage_pool1_per_node.0", "target"),
-					resource.TestCheckResourceAttrWith("incus_storage_pool.storage_pool1_per_node.0", "target", func(value string) error {
-						// Ensure target is one of the cluster member names.
-						_, ok := clusterMemberNames[value]
-						if !ok {
-							return fmt.Errorf("value %q not found in list of cluster members (%v)", value, clusterMemberNames)
-						}
-
-						return nil
-					}),
+					acctest.TestCheckResourceAttrInLookup("incus_storage_pool.storage_pool1_per_node.0", "target", clusterMemberNames),
 
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "name", poolName),
 					resource.TestCheckResourceAttr("incus_storage_pool.storage_pool1", "driver", driverName),
@@ -376,7 +368,7 @@ locals {
 
 resource "incus_storage_pool" "storage_pool1_per_node" {
   // Unfortunately, the terraform plugin test framework does not support
-	// "for_each", so we need to use "count" as an alternative.
+  // "for_each", so we need to use "count" as an alternative.
   count = length(local.member_names)
 
   name   = "%[1]s"
