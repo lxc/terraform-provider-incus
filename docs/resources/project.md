@@ -34,6 +34,8 @@ resource "incus_instance" "instance" {
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
 
+* `force_destroy` - *Optional* - Whether to delete everything the project contains on destroy so that it can be destroyed without any error.
+
 ## Attribute Reference
 
 No attributes are exported.
