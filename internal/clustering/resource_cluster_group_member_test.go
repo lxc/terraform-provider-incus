@@ -12,7 +12,8 @@ import (
 
 func TestAccClusterGroupMember_basic(t *testing.T) {
 	clusterGroupName := petname.Generate(2, "-")
-	clusterGroupMemberName := "node-1"
+
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -22,27 +23,35 @@ func TestAccClusterGroupMember_basic(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccClusterGroupMember_basic(clusterGroupName, clusterGroupMemberName),
+				Config: testAccClusterGroupMember_basic(clusterGroupName),
 				Check: resource.ComposeTestCheckFunc(
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_cluster_group_member.group1_node1", "cluster_group", clusterGroupName),
-					resource.TestCheckResourceAttr("incus_cluster_group_member.group1_node1", "member", clusterGroupMemberName),
+					acctest.TestCheckResourceAttrInLookup("incus_cluster_group_member.group1_node1", "member", clusterMemberNames),
 				),
 			},
 		},
 	})
 }
 
-func testAccClusterGroupMember_basic(clusterGroupName string, clusterGroupMemberName string) string {
+func testAccClusterGroupMember_basic(clusterGroupName string) string {
 	return fmt.Sprintf(`
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
+}
+
 resource "incus_cluster_group" "group1" {
   name   = "%[1]s"
 }
 
 resource "incus_cluster_group_member" "group1_node1" {
   cluster_group = incus_cluster_group.group1.name
-  member        = "%[2]s"
+  member        = local.member_names[0]
 }
-
-node-1
-`, clusterGroupName, clusterGroupMemberName)
+`, clusterGroupName)
 }
