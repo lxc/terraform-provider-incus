@@ -157,6 +157,8 @@ func TestAccNetwork_typeMacvlan(t *testing.T) {
 func TestAccNetwork_target(t *testing.T) {
 	networkName := petname.Name()
 
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
+
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.PreCheck(t)
@@ -167,12 +169,16 @@ func TestAccNetwork_target(t *testing.T) {
 			{
 				Config: testAccNetwork_target(networkName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "name", networkName),
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "target", "node-1"),
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node1", "config.bridge.external_interfaces", "nosuchint"),
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "name", networkName),
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "target", "node-2"),
-					resource.TestCheckResourceAttr("incus_network.cluster_network_node2", "config.bridge.external_interfaces", "nosuchint"),
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
+					// Since "count" is used to create the cluster_network_per_node resources, each resource
+					// is created the same, so it should be enough to just test one of them.
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "config.bridge.external_interfaces", "nosuchint"),
+					acctest.TestCheckResourceAttrInLookup("incus_network.cluster_network_per_node.0", "target", clusterMemberNames),
+
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "name", networkName),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "type", "bridge"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "config.ipv4.address", "10.150.19.1/24"),
@@ -410,18 +416,19 @@ resource "incus_network" "eth1" {
 
 func testAccNetwork_target(networkName string) string {
 	return fmt.Sprintf(`
-resource "incus_network" "cluster_network_node1" {
-  name   = "%[1]s"
-  target = "node-1"
+data "incus_cluster" "test" {}
 
-  config = {
-    "bridge.external_interfaces" = "nosuchint"
-  }
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
 }
 
-resource "incus_network" "cluster_network_node2" {
+resource "incus_network" "cluster_network_per_node" {
+  // Unfortunately, the terraform plugin test framework does not support
+  // "for_each", so we need to use "count" as an alternative.
+  count = length(local.member_names)
+
   name   = "%[1]s"
-  target = "node-2"
+  target = local.member_names[count.index]
 
   config = {
     "bridge.external_interfaces" = "nosuchint"
@@ -430,11 +437,10 @@ resource "incus_network" "cluster_network_node2" {
 
 resource "incus_network" "cluster_network" {
   depends_on = [
-    incus_network.cluster_network_node1,
-    incus_network.cluster_network_node2,
+    incus_network.cluster_network_per_node,
   ]
 
-  name = incus_network.cluster_network_node1.name
+  name = incus_network.cluster_network_per_node[0].name
   config = {
     "ipv4.address" = "10.150.19.1/24"
   }
