@@ -1,0 +1,16 @@
+package provider
+
+import (
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	{{- range . }}
+		"github.com/lxc/terraform-provider-incus/internal/{{ .PackageName | camelcase }}"
+	{{- end }}
+)
+
+func generatedDataSources() []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		{{- range . }}
+			{{ .PackageName | camelcase }}.New{{ .Name | pascalcase }}DataSource,
+		{{- end }}
+	}
+}
