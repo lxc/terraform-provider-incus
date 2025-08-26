@@ -19,37 +19,41 @@ import (
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
 
-type StoragePoolDataSourceModel struct {
-	Name types.String `tfsdk:"name"`
-
-	Project types.String `tfsdk:"project"`
-	Target  types.String `tfsdk:"target"`
-	Remote  types.String `tfsdk:"remote"`
+type StorageBucketDataSourceModel struct {
+	Name        types.String `tfsdk:"name"`
+	StoragePool types.String `tfsdk:"storage_pool"`
+	Project     types.String `tfsdk:"project"`
+	Target      types.String `tfsdk:"target"`
+	Remote      types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
 	Config      types.Map    `tfsdk:"config"`
-	Status      types.String `tfsdk:"status"`
+	Location    types.String `tfsdk:"location"`
 
 	// Extra attributes.
-	Driver types.String `tfsdk:"driver"`
+	S3URL types.String `tfsdk:"s3_url"`
 }
 
-type StoragePoolDataSource struct {
+type StorageBucketDataSource struct {
 	provider *provider_config.IncusProviderConfig
 }
 
-func NewStoragePoolDataSource() datasource.DataSource {
-	return &StoragePoolDataSource{}
+func NewStorageBucketDataSource() datasource.DataSource {
+	return &StorageBucketDataSource{}
 }
 
-func (d *StoragePoolDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = fmt.Sprintf("%s_storage_pool", req.ProviderTypeName)
+func (d *StorageBucketDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = fmt.Sprintf("%s_storage_bucket", req.ProviderTypeName)
 }
 
-func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *StorageBucketDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
+				Required: true,
+			},
+
+			"storage_pool": schema.StringAttribute{
 				Required: true,
 			},
 
@@ -81,13 +85,13 @@ func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.Schem
 				ElementType: types.StringType,
 			},
 
-			"status": schema.StringAttribute{
+			"location": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
 
 			// Extra attributes.
-			"driver": schema.StringAttribute{
+			"s3_url": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
@@ -95,7 +99,7 @@ func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.Schem
 	}
 }
 
-func (d *StoragePoolDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *StorageBucketDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	data := req.ProviderData
 	if data == nil {
 		return
@@ -110,8 +114,8 @@ func (d *StoragePoolDataSource) Configure(_ context.Context, req datasource.Conf
 	d.provider = provider
 }
 
-func (d *StoragePoolDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state StoragePoolDataSourceModel
+func (d *StorageBucketDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state StorageBucketDataSourceModel
 	var diags diag.Diagnostics
 
 	diags = req.Config.Get(ctx, &state)
@@ -128,27 +132,28 @@ func (d *StoragePoolDataSource) Read(ctx context.Context, req datasource.ReadReq
 		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
 		return
 	}
+	storagePoolName := state.StoragePool.ValueString()
 
-	storagePoolName := state.Name.ValueString()
-	storagePool, _, err := server.GetStoragePool(storagePoolName)
+	storageBucketName := state.Name.ValueString()
+	storageBucket, _, err := server.GetStoragePoolBucket(storagePoolName, storageBucketName)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing storage pool %q", storagePoolName), err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing storage bucket %q", storageBucketName), err.Error())
 		return
 	}
 
-	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(storagePool.Config), state.Config)
+	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(storageBucket.Config), state.Config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state.Name = types.StringValue(storagePool.Name)
-	state.Description = types.StringValue(storagePool.Description)
-	state.Status = types.StringValue(storagePool.Status)
+	state.Name = types.StringValue(storageBucket.Name)
+	state.Description = types.StringValue(storageBucket.Description)
+	state.Location = types.StringValue(storageBucket.Location)
 	state.Config = config
 
 	// Extra attributes.
-	state.Driver = types.StringValue(storagePool.Driver)
+	state.S3URL = types.StringValue(storageBucket.S3URL)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
