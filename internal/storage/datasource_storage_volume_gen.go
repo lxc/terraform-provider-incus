@@ -19,37 +19,46 @@ import (
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
 
-type StoragePoolDataSourceModel struct {
-	Name types.String `tfsdk:"name"`
-
-	Project types.String `tfsdk:"project"`
-	Target  types.String `tfsdk:"target"`
-	Remote  types.String `tfsdk:"remote"`
+type StorageVolumeDataSourceModel struct {
+	Name        types.String `tfsdk:"name"`
+	Type        types.String `tfsdk:"type"`
+	StoragePool types.String `tfsdk:"storage_pool"`
+	Project     types.String `tfsdk:"project"`
+	Target      types.String `tfsdk:"target"`
+	Remote      types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
 	Config      types.Map    `tfsdk:"config"`
-	Status      types.String `tfsdk:"status"`
+	Location    types.String `tfsdk:"location"`
 
 	// Extra attributes.
-	Driver types.String `tfsdk:"driver"`
+	ContentType types.String `tfsdk:"content_type"`
 }
 
-type StoragePoolDataSource struct {
+type StorageVolumeDataSource struct {
 	provider *provider_config.IncusProviderConfig
 }
 
-func NewStoragePoolDataSource() datasource.DataSource {
-	return &StoragePoolDataSource{}
+func NewStorageVolumeDataSource() datasource.DataSource {
+	return &StorageVolumeDataSource{}
 }
 
-func (d *StoragePoolDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = fmt.Sprintf("%s_storage_pool", req.ProviderTypeName)
+func (d *StorageVolumeDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = fmt.Sprintf("%s_storage_volume", req.ProviderTypeName)
 }
 
-func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *StorageVolumeDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
+				Required: true,
+			},
+
+			"type": schema.StringAttribute{
+				Required: true,
+			},
+
+			"storage_pool": schema.StringAttribute{
 				Required: true,
 			},
 
@@ -81,13 +90,13 @@ func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.Schem
 				ElementType: types.StringType,
 			},
 
-			"status": schema.StringAttribute{
+			"location": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
 
 			// Extra attributes.
-			"driver": schema.StringAttribute{
+			"content_type": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
@@ -95,7 +104,7 @@ func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.Schem
 	}
 }
 
-func (d *StoragePoolDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *StorageVolumeDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	data := req.ProviderData
 	if data == nil {
 		return
@@ -110,8 +119,8 @@ func (d *StoragePoolDataSource) Configure(_ context.Context, req datasource.Conf
 	d.provider = provider
 }
 
-func (d *StoragePoolDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state StoragePoolDataSourceModel
+func (d *StorageVolumeDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state StorageVolumeDataSourceModel
 	var diags diag.Diagnostics
 
 	diags = req.Config.Get(ctx, &state)
@@ -129,26 +138,30 @@ func (d *StoragePoolDataSource) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
-	storagePoolName := state.Name.ValueString()
-	storagePool, _, err := server.GetStoragePool(storagePoolName)
+	typeName := state.Type.ValueString()
+	storagePoolName := state.StoragePool.ValueString()
+
+	storageVolumeName := state.Name.ValueString()
+	storageVolume, _, err := server.GetStoragePoolVolume(storagePoolName, typeName, storageVolumeName)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing storage pool %q", storagePoolName), err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing storage volume %q", storageVolumeName), err.Error())
 		return
 	}
 
-	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(storagePool.Config), state.Config)
+	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(storageVolume.Config), state.Config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state.Name = types.StringValue(storagePool.Name)
-	state.Description = types.StringValue(storagePool.Description)
-	state.Status = types.StringValue(storagePool.Status)
+	state.Name = types.StringValue(storageVolume.Name)
+	state.Type = types.StringValue(storageVolume.Type)
+	state.Description = types.StringValue(storageVolume.Description)
+	state.Location = types.StringValue(storageVolume.Location)
 	state.Config = config
 
 	// Extra attributes.
-	state.Driver = types.StringValue(storagePool.Driver)
+	state.ContentType = types.StringValue(storageVolume.ContentType)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
