@@ -13,10 +13,12 @@ import (
 )
 
 // TestImage is a constant that specifies the default image used in all tests.
-const TestImage = "images:alpine/edge/amd64"
+var TestImage = "images:alpine/edge"
 
-var testProviderConfig *provider_config.IncusProviderConfig
-var testProviderMutex sync.Mutex
+var (
+	testProviderConfig *provider_config.IncusProviderConfig
+	testProviderMutex  sync.Mutex
+)
 
 // testProvider returns an IncusProviderConfig that is initialized with default
 // Incus config.
