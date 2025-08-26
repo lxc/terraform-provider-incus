@@ -15,6 +15,9 @@ testacc:
 build:
 	$(GO) build -v
 
+generate:
+	$(GO) generate ./...
+
 targets:
 	gox -osarch='$(TARGETS)' -output="dist/{{.OS}}_{{.Arch}}/terraform-provider-incus_${TRAVIS_TAG}_x4"
 	find dist -maxdepth 1 -mindepth 1 -type d -print0 | \
