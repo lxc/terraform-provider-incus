@@ -1,0 +1,115 @@
+# incus_{{ .Name }}
+
+Provides information about an Incus {{ .Name | words }}.
+{{- if .Description }}
+{{ .Description }}
+{{- end }}
+
+## Example Usage
+
+```hcl
+data "incus_{{ .Name }}" "this" {
+  {{ .ObjectNamePropertyName }} = "{{ .ObjectNamePropertyDefaultValue }}"
+{{- if .ExtraIDAttribute.Name }}
+  {{ .ExtraIDAttribute.Name }} = "custom"
+{{- end }}
+{{- if .HasParent }}
+  {{ .ParentName }} = "parent"
+{{- end }}
+}
+
+output "{{ .Name }}_{{ .ObjectNamePropertyName }}" {
+  value = data.incus_{{ .Name }}.this.{{ .ObjectNamePropertyName }}
+}
+```
+
+## Argument Reference
+
+* `{{ .ObjectNamePropertyName }}` - **Required** - {{ .ObjectNamePropertyName | words | titlecase }} of the {{ .Name | words }}.
+{{- with $.ExtraDescriptions.name }}
+{{ . | indent 2 }}
+{{- end }}
+{{- if .ExtraIDAttribute.Name }}
+
+* `{{ .ExtraIDAttribute.Name }}` - **Required** - {{ .ExtraIDAttribute.Description | indent 2 | trim }}
+{{- end }}
+{{- if .HasParent }}
+
+* `{{ .ParentName }}` - **Required** - Name of the parent {{ .ParentName | words }}.
+{{- with $.ExtraDescriptions.parent }}
+{{ . | indent 2 }}
+{{- end }}
+{{- end }}
+{{- if .HasProject }}
+
+* `project` - *Optional* - Name of the project where the {{ .Name | words }} is be stored.
+{{- with $.ExtraDescriptions.project }}
+{{ . | indent 2 }}
+{{- end }}
+{{- end }}
+
+* `remote` - *Optional* - The remote in which the resource was created. If
+  not provided, the provider's default remote will be used.
+{{- with $.ExtraDescriptions.remote }}
+{{ . | indent 2 }}
+{{- end }}
+
+* `target` - *Optional* - Specify a target node in a cluster.
+{{- with $.ExtraDescriptions.target }}
+{{ . | indent 2 }}
+{{- end }}
+
+## Attribute Reference
+
+* `description` - Description of the {{ .Name | words }}.
+{{- with $.ExtraDescriptions.description }}
+{{ . | indent 2 }}
+{{- end }}
+
+* `config` - Map of key/value pairs of config settings.
+{{- with $.ExtraDescriptions.config }}
+{{ . | indent 2 }}
+{{- end }}
+{{- with .HasStatus }}
+
+* `status` - Status of the {{ $.Name | words }}.
+{{- with $.ExtraDescriptions.status }}
+{{ . | indent 2 }}
+{{- end }}
+{{- end }}
+{{- with .HasLocation }}
+
+* `location` - Location of the {{ $.Name | words }}.
+{{- with $.ExtraDescriptions.location }}
+{{ . | indent 2 }}
+{{- end }}
+{{- end }}
+{{- with .HasLocations }}
+
+* `locations` - Locations of the {{ $.Name | words }}.
+{{- with $.ExtraDescriptions.locations }}
+{{ . | indent 2 }}
+{{- end }}
+{{- end }}
+{{- range .ExtraAttributes }}
+
+* `{{ .Name }}` - {{ .Description | indent 2 | trim }}
+{{- end }}
+{{- range .ExtraAttributes }}
+{{- if .ElementType }}
+{{- if eq .ElementType.Type "object" }}
+
+The {{ $.Name | words }} {{ .Name | words }} supports:
+{{- range .ElementType.AttrTypes }}
+
+* `{{ .Name }}` - {{ .Description | indent 2 | trim}}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- with .Notes }}
+
+## Notes
+
+{{ . }}
+{{- end }}
