@@ -296,11 +296,13 @@ func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource 
 }
 
 func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
+	dataSources := []func() datasource.DataSource{
 		clustering.NewClusterDataSource,
 		image.NewImageDataSource,
 		profile.NewProfileDataSource,
-		project.NewProjectDataSource,
-		storage.NewStoragePoolDataSource,
 	}
+
+	dataSources = append(dataSources, generatedDataSources()...)
+
+	return dataSources
 }
