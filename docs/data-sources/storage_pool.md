@@ -1,21 +1,17 @@
 # incus_storage_pool
 
 Provides information about an Incus storage pool.
+See Incus storage pool [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/) for more details.
 
 ## Example Usage
 
 ```hcl
-data "incus_storage_pool" "default" {
+data "incus_storage_pool" "this" {
   name = "default"
 }
 
-resource "incus_storage_volume" "small" {
-  name         = "small"
-  pool         = data.incus_storage_pool.default.name
-  content_type = "block"
-  config = {
-    "size" = "1GiB",
-  }
+output "storage_pool_name" {
+  value = data.incus_storage_pool.this.name
 }
 ```
 
@@ -34,7 +30,9 @@ resource "incus_storage_volume" "small" {
 
 * `description` - Description of the storage pool.
 
-* `driver` - Storage Pool driver.
+* `config` - Map of key/value pairs of config settings.
+  [storage pool config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/)
 
-* `config` - *Optional* - Map of key/value pairs of
-  [storage pool config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/).
+* `status` - Status of the storage pool.
+
+* `driver` - Storage Pool driver.
