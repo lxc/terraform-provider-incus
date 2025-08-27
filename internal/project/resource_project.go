@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -25,10 +26,11 @@ import (
 
 // ProjectModel resource data model that matches the schema.
 type ProjectModel struct {
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Remote      types.String `tfsdk:"remote"`
-	Config      types.Map    `tfsdk:"config"`
+	Name         types.String `tfsdk:"name"`
+	Description  types.String `tfsdk:"description"`
+	Remote       types.String `tfsdk:"remote"`
+	Config       types.Map    `tfsdk:"config"`
+	ForceDestroy types.Bool   `tfsdk:"force_destroy"`
 }
 
 // ProjectResource represent Incus project resource.
@@ -75,6 +77,12 @@ func (r ProjectResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+
+			"force_destroy": schema.BoolAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
 			},
 		},
 	}
@@ -226,7 +234,12 @@ func (r ProjectResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	err = server.DeleteProject(projectName)
+	if state.ForceDestroy.ValueBool() {
+		err = server.DeleteProjectForce(projectName)
+	} else {
+		err = server.DeleteProject(projectName)
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to remove project %q", projectName), err.Error())
 	}
@@ -257,6 +270,10 @@ func (r *ProjectResource) ImportState(ctx context.Context, req resource.ImportSt
 
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(k), v)...)
 	}
+
+	// Force a change on import if set to `true` to make it clear in the plan
+	// that the resource has force_destroy set.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("force_destroy"), types.BoolValue(false))...)
 }
 
 // SyncState fetches the server's current state for a project and updates
