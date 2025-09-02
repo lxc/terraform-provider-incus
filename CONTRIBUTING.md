@@ -45,9 +45,10 @@ Separate commits should be used for:
 
 - Documentation (`docs: Update XYZ` for files in `docs/`)
 - Resources (`<resource>: Add XYZ` for changes to resources in `internal/`)
+- Generated (`<resource>: Generated XYZ` for changes to resources in `internal/`)
 - Tests (`tests: Add test for XYZ` for changes to `tests/`)
 
-This structure makes it easiser for contributions to be reviewed.
+This structure makes it easier for contributions to be reviewed.
 
 ### Developer Certificate of Origin
 
