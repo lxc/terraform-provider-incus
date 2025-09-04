@@ -1,0 +1,317 @@
+---
+
+# images data source is not automatically generated, since it offers additional
+# arguments (fingerprint, type, architecture), which is not currently supported
+# by the generator and it is questionable, if it makes sense to add this.
+#
+# images:
+
+network:
+  description: |-
+    See Incus network [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/networks/) for more details.
+  package-name: network
+  incus-get-method: GetNetwork
+  has-locations: true
+  extra-attributes:
+    - name: type
+      type: string
+      description: |-
+        Network type.
+        [network type documentation](https://linuxcontainers.org/incus/docs/main/howto/network_create/#network-types)
+    - name: managed
+      type: bool
+      description: Whether the network is managed by Incus.
+  extra-descriptions:
+    config: |-
+      [network config settings](https://linuxcontainers.org/incus/docs/main/howto/network_create/#network-types)
+
+network_acl:
+  description: |-
+    See Incus network ACL [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_acls/) for more details.
+  package-name: network
+  incus-get-method: GetNetworkACL
+  has-no-status: true
+  extra-attributes:
+    - name: egress
+      type: list
+      element-type:
+        type: object
+        attr-types:
+          - name: action
+            type: string
+            description: Action to perform on rule match.
+          - name: source
+            type: string
+            description: Source address.
+          - name: destination
+            type: string
+            description: Destination address.
+          - name: protocol
+            type: string
+            description: Protocol (e.g., tcp, udp).
+          - name: source_port
+            type: string
+            description: Source port.
+          - name: destination_port
+            type: string
+            description: Destination port.
+          - name: icmp_type
+            type: string
+            description: Type of ICMP message.
+          - name: icmp_code
+            type: string
+            description: ICMP message code (for ICMP protocol).
+          - name: description
+            type: string
+            description: Description of the rule.
+          - name: state
+            type: string
+            description: State of the rule.
+      description: List of egress rules.
+    - name: ingress
+      type: list
+      element-type:
+        type: object
+        attr-types:
+          - name: action
+            type: string
+            description: Action to perform on rule match.
+          - name: source
+            type: string
+            description: Source address.
+          - name: destination
+            type: string
+            description: Destination address.
+          - name: protocol
+            type: string
+            description: Protocol (e.g., tcp, udp).
+          - name: source_port
+            type: string
+            description: Source port.
+          - name: destination_port
+            type: string
+            description: Destination port.
+          - name: icmp_type
+            type: string
+            description: Type of ICMP message.
+          - name: icmp_code
+            type: string
+            description: ICMP message code (for ICMP protocol).
+          - name: description
+            type: string
+            description: Description of the rule.
+          - name: state
+            type: string
+            description: State of the rule.
+      description: List of ingress rules.
+
+network_address_set:
+  description: |-
+    See Incus network address set [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_address_sets/) for more details.
+  package-name: network
+  incus-get-method: GetNetworkAddressSet
+  has-no-status: true
+  extra-attributes:
+    - name: addresses
+      type: list
+      element-type:
+        type: string
+      description: List of network addresses.
+
+network_forward:
+  description: |-
+    See Incus network forward [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_forwards/) for more details.
+  object-name-property-name: listen_address
+  object-name-property-default-value: 127.0.0.1
+  package-name: network
+  parent: network
+  incus-get-method: GetNetworkForward
+  has-no-status: true
+  has-location: true
+  extra-attributes:
+    - name: ports
+      type: list
+      element-type:
+        type: object
+        attr-types:
+          - name: description
+            type: string
+            description: Description of the forward port.
+          - name: protocol
+            type: string
+            description: Protocol for port forward (either tcp or udp).
+          - name: listen_port
+            type: string
+            description: ListenPort(s) to forward (comma delimited ranges).
+          - name: target_port
+            type: string
+            description: Target port(s) to forward ListenPorts to (allows for many-to-one).
+          - name: target_address
+            type: string
+            description: Target address to forward ListenPorts to.
+          - name: snat
+            type: bool
+            description: SNAT controls whether to apply a matching SNAT rule to new outgoing traffic from the target.
+      description: List of ports to forward.
+
+network_integration:
+  description: |-
+    See Incus network integration [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_integrations/) for more details.
+  package-name: network
+  incus-get-method: GetNetworkIntegration
+  has-no-status: true
+  extra-attributes:
+    - name: type
+      type: string
+      description: Integration type.
+
+network_load_balancer:
+  description: |-
+    See Incus network load balancer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_load_balancers/) for more details.
+  object-name-property-name: listen_address
+  object-name-property-default-value: 127.0.0.1
+  package-name: network
+  parent: network
+  incus-get-method: GetNetworkLoadBalancer
+  has-no-status: true
+  has-location: true
+  extra-attributes:
+    - name: backends
+      type: list
+      element-type:
+        type: object
+        attr-types:
+          - name: name
+            type: string
+            description: Name of the load balancer backend.
+          - name: description
+            type: string
+            description: Description of the load balancer backend.
+          - name: target_port
+            type: string
+            description: TargetPort(s) for the forward ListenPorts to (allows for many-to one).
+          - name: target_address
+            type: string
+            description: TargetAddress to forward ListenPorts to.
+      description: List of load balancer backends.
+    - name: ports
+      type: list
+      element-type:
+        type: object
+        attr-types:
+          - name: description
+            type: string
+            description: Description of the load balancer port.
+          - name: protocol
+            type: string
+            description: Protocol for load balancer (either tcp or udp).
+          - name: listen_port
+            type: string
+            description: ListenPort(s) for the load balancer (comma delimited ranges).
+          - name: target_backend
+            type: list
+            element-type:
+              type: string
+            description: TargetBackend backend names to load balance ListenPorts to.
+      description: List of load balancer ports.
+
+network_peer:
+  description: |-
+    See Incus network peer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_peers/https://linuxcontainers.org/incus/docs/main/howto/network_ovn_peers/) for more details.
+  package-name: network
+  parent: network
+  incus-get-method: GetNetworkPeer
+  extra-attributes:
+    - name: target_project
+      type: string
+      description: Target project for the network peer.
+    - name: target_network
+      type: string
+      description: Target network for the network peer.
+    - name: target_integration
+      type: string
+      description: Target integration for the network peer.
+    - name: type
+      type: string
+      description: Network peer type.
+
+network_zone:
+  description: |-
+    See Incus network zone [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_zones/) for more details.
+  package-name: network
+  incus-get-method: GetNetworkZone
+  has-no-status: true
+
+# profile data source can not be automatically generated, since there is no good
+# way to represent the structure of the devices attribute in Terraform.
+# The map type in terraform requires each value of the map to be the same type.
+# Since the devices attribute is of type map[string]map[string]string, the entries
+# of the inner map do have different keys and are thus seen as different types.
+# For the outer map, the key is basically the name of the device and therefore
+# needs to be dynamic and can not be known in advance. Also the the dynamic
+# Terraform type, is ruled out, since it is not supported as type for the
+# elements of a map.
+# For the inner type, it would be possible to use object with optional fields
+# instead of map[string]string, but this would require the object to define
+# every possible property of all diffferent device types. This does not sound
+# reasonable.
+#
+# profile:
+
+project:
+  package-name: project
+  incus-get-method: GetProject
+  has-no-project: true
+  has-no-status: true
+  extra-descriptions:
+    config: |-
+      [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
+
+storage_bucket:
+  description: |-
+    See Incus storage bucket [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_buckets/) for more details.
+  package-name: storage
+  parent: storage_pool
+  incus-get-method: GetStoragePoolBucket
+  has-no-status: true
+  has-location: true
+  extra-attributes:
+    - name: s3_url
+      type: string
+      description: Storage Bucket S3 URL.
+  extra-descriptions:
+    config: |-
+      [storage bucket config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/)
+
+storage_pool:
+  description: |-
+    See Incus storage pool [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/) for more details.
+  package-name: storage
+  incus-get-method: GetStoragePool
+  extra-attributes:
+    - name: driver
+      type: string
+      description: Storage Pool driver.
+  extra-descriptions:
+    config: |-
+      [storage pool config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/)
+
+storage_volume:
+  description: |-
+    See Incus storage volume [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_volumes/) for more details.
+  package-name: storage
+  parent: storage_pool
+  incus-get-method: GetStoragePoolVolume
+  has-no-status: true
+  has-location: true
+  extra-id-attribute:
+    name: type
+    type: string
+    description: Storage Volume type.
+  extra-attributes:
+    - name: content_type
+      type: string
+      description: Storage Volume content type.
+  extra-descriptions:
+    config: |-
+      [storage volume config settings](https://linuxcontainers.org/incus/docs/main/reference/storage_drivers/)
