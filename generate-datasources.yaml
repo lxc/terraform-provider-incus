@@ -6,6 +6,37 @@
 #
 # images:
 
+instance:
+  description: |-
+    See Incus instance [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/instance_config/) for more details.
+  package-name: instance
+  incus-get-method: GetInstance
+  has-location: true
+  extra-attributes:
+    - name: device
+      type: _device
+      description: Device definitions. See reference below.
+    - name: type
+      type: string
+      description: Instance type.
+    - name: architecture
+      type: string
+      description: Architecture name.
+    - name: ephemeral
+      type: bool
+      description: Whether the instance is ephemeral (deleted on shutdown).
+    - name: profiles
+      type: list
+      element-type:
+        type: string
+      description: List of profiles applied to the instance.
+    - name: stateful
+      type: bool
+      description: Whether the instance is stateful.
+  extra-descriptions:
+    config: |-
+      [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
+
 network:
   description: |-
     See Incus network [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/networks/) for more details.
