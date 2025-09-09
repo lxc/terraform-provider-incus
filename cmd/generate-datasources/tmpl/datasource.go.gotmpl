@@ -4,6 +4,8 @@ recursiv, so we only dive on level deep into lists ans maps to find objects.
 */}}
 {{- $requireAttr := false }}
 {{- $requireBasetypes := false }}
+{{- $extraAttributesHasDevice := false }}
+{{- $hasExtraAttributes := false }}
 {{- range .ExtraAttributes }}
 	{{- if eq .Type "list" }}
 		{{- if eq .ElementType.Type "object" }}
@@ -18,7 +20,11 @@ recursiv, so we only dive on level deep into lists ans maps to find objects.
 	{{- else if eq .Type "object" }}
 		{{- $requireAttr = true }}
 		{{- $requireBasetypes = true }}
+	{{- else if eq .Type "_device" }}
+		{{- $extraAttributesHasDevice = true }}
+		{{ continue }}
 	{{- end }}
+	{{- $hasExtraAttributes = true }}
 {{- end }}
 
 {{- /* Return ElementType part of schema definition for list and map recursively */}}
@@ -123,9 +129,13 @@ type {{ .Name | pascalcase }}DataSourceModel struct {
 		Locations types.List `tfsdk:"locations"`
 	{{- end }}
 
-	{{ with .ExtraAttributes }}// Extra attributes.{{- end }}
+	{{ if $hasExtraAttributes }}// Extra attributes.{{- end }}
 	{{- range .ExtraAttributes }}
-		{{ .Name | pascalcase}} types.{{ .Type | pascalcase }} `tfsdk:"{{ .Name }}"`
+		{{- if eq .Type "_device" }}
+			Devices types.Set `tfsdk:"device"`
+		{{- else }}
+			{{ .Name | pascalcase}} types.{{ .Type | pascalcase }} `tfsdk:"{{ .Name }}"`
+		{{- end }}
 	{{- end }}
 }
 
@@ -212,28 +222,54 @@ func (d *{{ .Name | pascalcase }}DataSource) Schema(ctx context.Context, req dat
 			},
 
 			{{ end -}}
-			{{ with .ExtraAttributes }}// Extra attributes.{{ end }}
+			{{ $extraAttributesContainDevice := false }}
+			{{ if $hasExtraAttributes }}// Extra attributes.{{ end }}
 			{{- range .ExtraAttributes }}
-			"{{ .Name }}": schema.{{ .Type | pascalcase }}Attribute{
-				Optional: true,
-				Computed: true,
-				{{- if or (eq .Type "list") (eq .Type "map") }}
-					{{- if .ElementType }}
-						ElementType: {{- template "schemaElementType" .ElementType }}
-					{{- else }}
-						{{ fail `"type" is "list" or "map", but no "element-type" provided` }}
-					{{- end }}
-				{{- else if eq .Type "object" }}
-					{{- if .AttrTypes }}
-						AttrTypes: {{- template "schemaAttrTypes" .AttrTypes }}
-					{{- else }}
-						{{ fail `"type" is "object", but no "attr-types" are provided` }}
-					{{- end }}
+				{{- /* Type "_device" is skipped here, since it is represented as block. */}}
+				{{- if ne .Type "_device" }}
+					"{{ .Name }}": schema.{{ .Type | pascalcase }}Attribute{
+						Optional: true,
+						Computed: true,
+						{{- if or (eq .Type "list") (eq .Type "map") }}
+							{{- if .ElementType }}
+								ElementType: {{- template "schemaElementType" .ElementType }}
+							{{- else }}
+								{{ fail `"type" is "list" or "map", but no "element-type" provided` }}
+							{{- end }}
+						{{- else if eq .Type "object" }}
+							{{- if .AttrTypes }}
+								AttrTypes: {{- template "schemaAttrTypes" .AttrTypes }}
+							{{- else }}
+								{{ fail `"type" is "object", but no "attr-types" are provided` }}
+							{{- end }}
+						{{- end }}
+					},
 				{{- end }}
-			},
 
 			{{ end }}
 		},
+		{{- if $extraAttributesHasDevice }}
+			Blocks: map[string]schema.Block{
+				"device": schema.SetNestedBlock{
+					NestedObject: schema.NestedBlockObject{
+						Attributes: map[string]schema.Attribute{
+							"name": schema.StringAttribute{
+								Computed: true,
+							},
+
+							"type": schema.StringAttribute{
+								Computed: true,
+							},
+
+							"properties": schema.MapAttribute{
+								Computed:    true,
+								ElementType: types.StringType,
+							},
+						},
+					},
+				},
+			},
+		{{- end }}
 	}
 }
 
@@ -294,9 +330,19 @@ func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datas
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	{{- with .HasLocations }}
+	{{- if $extraAttributesHasDevice }}
 
-	locations, diags := types.ListValueFrom(ctx, types.StringType, network.Locations)
+	devices, diags := common.ToDeviceSetType(ctx, {{ .Name | camelcase }}.Devices)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	state.Devices = devices
+	{{- end }}
+	{{- if .HasLocations }}
+
+	locations, diags := types.ListValueFrom(ctx, types.StringType, {{ .Name | camelcase }}.Locations)
 	resp.Diagnostics.Append(diags...)
 	if diags.HasError() {
 		return
@@ -308,45 +354,48 @@ func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datas
 		state.{{ .ExtraIDAttribute.Name | pascalcase }} = types.{{ .ExtraIDAttribute.Type | pascalcase }}Value({{ .Name | camelcase }}.{{ .ExtraIDAttribute.Name | pascalcase }})
 	{{- end }}
 	state.Description = types.StringValue({{ .Name | camelcase }}.Description)
-	{{- with .HasStatus }}
-		state.Status = types.StringValue({{ $.Name | camelcase }}.Status)
+	{{- if .HasStatus }}
+		state.Status = types.StringValue({{ .Name | camelcase }}.Status)
 	{{- end }}
-	{{- with .HasLocation }}
-		state.Location = types.StringValue({{ $.Name | camelcase }}.Location)
+	{{- if .HasLocation }}
+		state.Location = types.StringValue({{ .Name | camelcase }}.Location)
 	{{- end }}
-	{{- with .HasLocations }}
+	{{- if .HasLocations }}
 		state.Locations = locations
 	{{- end }}
 	state.Config = config
 
-	{{ with .ExtraAttributes }}// Extra attributes.{{ end }}
+	{{ if $hasExtraAttributes }}// Extra attributes.{{ end }}
 	{{- range .ExtraAttributes }}
-		{{- if or (eq .Type "list") (eq .Type "map") (eq .Type "object") }}
-			{{- if eq .Type "list" }}
-				{{- if .ElementType }}
-					state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ListTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
-				{{- else }}
-					{{ fail `"type" is "list", but no "element-type" provided` }}
+		{{- /* Type "_device" is skipped here, since it is already handled above. */}}
+		{{- if ne .Type "_device" }}
+			{{- if or (eq .Type "list") (eq .Type "map") (eq .Type "object") }}
+				{{- if eq .Type "list" }}
+					{{- if .ElementType }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ListTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "list", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "map" }}
+					{{- if .ElementType }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}MapTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "map", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "object" }}
+					{{- if .AttrTypes }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ObjectTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "object", but no "attr-types" are provided` }}
+					{{- end }}
 				{{- end }}
-			{{- else if eq .Type "map" }}
-				{{- if .ElementType }}
-					state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}MapTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
-				{{- else }}
-					{{ fail `"type" is "map", but no "element-type" provided` }}
-				{{- end }}
-			{{- else if eq .Type "object" }}
-				{{- if .AttrTypes }}
-					state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ObjectTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
-				{{- else }}
-					{{ fail `"type" is "object", but no "attr-types" are provided` }}
-				{{- end }}
+				resp.Diagnostics.Append(diags...)
+				if diags.HasError() {
+					return
+				}
+			{{- else }}
+				state.{{ .Name | pascalcase }} = types.{{ .Type | pascalcase }}Value({{ $.Name | camelcase }}.{{ .Name | pascalcase }})
 			{{- end }}
-			resp.Diagnostics.Append(diags...)
-			if diags.HasError() {
-				return
-			}
-		{{- else }}
-			state.{{ .Name | pascalcase }} = types.{{ .Type | pascalcase }}Value({{ $.Name | camelcase }}.{{ .Name | pascalcase }})
 		{{- end }}
 	{{- end }}
 

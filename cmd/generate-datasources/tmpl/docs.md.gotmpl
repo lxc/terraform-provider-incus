@@ -1,3 +1,9 @@
+{{- $extraAttributesHasDevice := false }}
+{{- range .ExtraAttributes }}
+  {{- if eq .Type "_device" }}
+    {{- $extraAttributesHasDevice = true }}
+  {{- end }}
+{{- end -}}
 # incus_{{ .Name }}
 
 Provides information about an Incus {{ .Name | words }}.
@@ -106,6 +112,18 @@ The {{ $.Name | words }} {{ .Name | words }} supports:
 {{- end }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- if $extraAttributesHasDevice }}
+
+The `device` block supports:
+
+* `name` - Name of the device.
+
+* `type` - Type of the device Must be one of none, disk, nic,
+  unix-char, unix-block, usb, gpu, infiniband, proxy, unix-hotplug, tpm, pci.
+
+* `properties` - Map of key/value pairs of
+  [device properties](https://linuxcontainers.org/incus/docs/main/reference/devices/).
 {{- end }}
 {{- with .Notes }}
 

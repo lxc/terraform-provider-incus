@@ -102,13 +102,23 @@ type ExtraAttribute struct {
 	Name string `yaml:"name"`
 
 	// Data type of the attribute, e.g. `string`.
-	// Supported types are:
+	// Supported types are (mapping directly to the corresponding types from Terraform):
 	//
 	//   * `bool`
 	//   * `list`
 	//   * `map`
 	//   * `object`
 	//   * `string`
+	//
+	// Additionally, the following special types are supported:
+	// (the internal types are recognizable by the leading `_`)
+	//
+	//   * `_device`: represents devices as used in instances and profiles. On the
+	//                API, these are represented as map[string]map[string]string,
+	//                which is mapped to a set of blocks of device information
+	//                consisting of name, type and properties.
+	//                This is a special type with the names and the logic hard
+	//                coded. With this, it can only be used to represent devices.
 	Type string `yaml:"type"`
 
 	// If the `type` is `list` or `map`, `element-type` defines the Terraform type
