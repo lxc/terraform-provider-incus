@@ -5,14 +5,12 @@ Provides information about an Incus profile.
 ## Example Usage
 
 ```hcl
-data "incus_profile" "default" {
+data "incus_profile" "this" {
   name = "default"
 }
 
-resource "incus_instance" "d1" {
-  profiles = [data.incus_profile.default.name]
-  image    = "images:debian/12"
-  name     = "d1"
+output "profile_name" {
+  value = data.incus_profile.this.name
 }
 ```
 
@@ -20,17 +18,21 @@ resource "incus_instance" "d1" {
 
 * `name` - **Required** - Name of the profile.
 
-* `project` - *Optional* - Name of the project where the profile will be stored.
+* `project` - *Optional* - Name of the project where the profile is be stored.
 
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
 
+* `target` - *Optional* - Specify a target node in a cluster.
+
 ## Attribute Reference
 
-* `device` - Device definition. See reference below.
+* `description` - Description of the profile.
 
-* `config` - Map of key/value pairs of
-  [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
+* `config` - Map of key/value pairs of config settings.
+  [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
+
+* `device` - Device definition. See reference below.
 
 The `device` block supports:
 

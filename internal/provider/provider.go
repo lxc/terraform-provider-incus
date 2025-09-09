@@ -299,7 +299,6 @@ func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataS
 	dataSources := []func() datasource.DataSource{
 		clustering.NewClusterDataSource,
 		image.NewImageDataSource,
-		profile.NewProfileDataSource,
 	}
 
 	dataSources = append(dataSources, generatedDataSources()...)

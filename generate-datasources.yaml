@@ -242,21 +242,17 @@ network_zone:
   incus-get-method: GetNetworkZone
   has-no-status: true
 
-# profile data source can not be automatically generated, since there is no good
-# way to represent the structure of the devices attribute in Terraform.
-# The map type in terraform requires each value of the map to be the same type.
-# Since the devices attribute is of type map[string]map[string]string, the entries
-# of the inner map do have different keys and are thus seen as different types.
-# For the outer map, the key is basically the name of the device and therefore
-# needs to be dynamic and can not be known in advance. Also the the dynamic
-# Terraform type, is ruled out, since it is not supported as type for the
-# elements of a map.
-# For the inner type, it would be possible to use object with optional fields
-# instead of map[string]string, but this would require the object to define
-# every possible property of all diffferent device types. This does not sound
-# reasonable.
-#
-# profile:
+profile:
+  package-name: profile
+  incus-get-method: GetProfile
+  has-no-status: true
+  extra-attributes:
+    - name: device
+      type: _device
+      description: Device definition. See reference below.
+  extra-descriptions:
+    config: |-
+      [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
 
 project:
   package-name: project

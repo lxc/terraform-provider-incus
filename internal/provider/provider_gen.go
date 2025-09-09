@@ -5,6 +5,7 @@ package provider
 import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/lxc/terraform-provider-incus/internal/network"
+	"github.com/lxc/terraform-provider-incus/internal/profile"
 	"github.com/lxc/terraform-provider-incus/internal/project"
 	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
@@ -19,6 +20,7 @@ func generatedDataSources() []func() datasource.DataSource {
 		network.NewNetworkLoadBalancerDataSource,
 		network.NewNetworkPeerDataSource,
 		network.NewNetworkZoneDataSource,
+		profile.NewProfileDataSource,
 		project.NewProjectDataSource,
 		storage.NewStorageBucketDataSource,
 		storage.NewStoragePoolDataSource,
