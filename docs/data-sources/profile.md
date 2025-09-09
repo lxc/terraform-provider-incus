@@ -1,6 +1,7 @@
 # incus_profile
 
 Provides information about an Incus profile.
+See Incus profile [configuration reference](https://linuxcontainers.org/incus/docs/main/profiles/) for more details.
 
 ## Example Usage
 
@@ -32,9 +33,9 @@ output "profile_name" {
 * `config` - Map of key/value pairs of config settings.
   [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
 
-* `device` - Device definition. See reference below.
+* `device` - Device definitions. See reference below.
 
-The `device` block supports:
+The `device` blocks support:
 
 * `name` - Name of the device.
 

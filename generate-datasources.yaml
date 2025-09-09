@@ -243,13 +243,15 @@ network_zone:
   has-no-status: true
 
 profile:
+  description: |-
+    See Incus profile [configuration reference](https://linuxcontainers.org/incus/docs/main/profiles/) for more details.
   package-name: profile
   incus-get-method: GetProfile
   has-no-status: true
   extra-attributes:
     - name: device
       type: _device
-      description: Device definition. See reference below.
+      description: Device definitions. See reference below.
   extra-descriptions:
     config: |-
       [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
