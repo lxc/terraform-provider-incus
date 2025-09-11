@@ -5,14 +5,12 @@ Provides information about an Incus project.
 ## Example Usage
 
 ```hcl
-data "incus_project" "default" {
+data "incus_project" "this" {
   name = "default"
 }
 
-resource "incus_instance" "d1" {
-  project = data.incus_project.default.name
-  image    = "images:debian/12"
-  name     = "d1"
+output "project_name" {
+  value = data.incus_project.this.name
 }
 ```
 
@@ -23,9 +21,11 @@ resource "incus_instance" "d1" {
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
 
+* `target` - *Optional* - Specify a target node in a cluster.
+
 ## Attribute Reference
 
 * `description` - Description of the project.
 
-* `config` - Map of key/value pairs of
-  [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
+* `config` - Map of key/value pairs of config settings.
+  [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)

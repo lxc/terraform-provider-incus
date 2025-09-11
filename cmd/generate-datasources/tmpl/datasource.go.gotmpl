@@ -1,0 +1,650 @@
+{{- /*
+Evaluate necessary imports. Go template does not support to do this fully
+recursiv, so we only dive on level deep into lists ans maps to find objects.
+*/}}
+{{- $requireAttr := false }}
+{{- $requireBasetypes := false }}
+{{- $extraAttributesHasDevice := false }}
+{{- $hasExtraAttributes := false }}
+{{- range .ExtraAttributes }}
+	{{- if eq .Type "list" }}
+		{{- if eq .ElementType.Type "object" }}
+			{{- $requireAttr = true }}
+			{{- $requireBasetypes = true }}
+		{{- end }}
+	{{- else if eq .Type "map" }}
+		{{- $requireAttr = true }}
+		{{- if eq .ElementType.Type "object" }}
+			{{- $requireBasetypes = true }}
+		{{- end }}
+	{{- else if eq .Type "object" }}
+		{{- $requireAttr = true }}
+		{{- $requireBasetypes = true }}
+	{{- else if eq .Type "_device" }}
+		{{- $extraAttributesHasDevice = true }}
+		{{ continue }}
+	{{- end }}
+	{{- $hasExtraAttributes = true }}
+{{- end }}
+
+{{- /* Return ElementType part of schema definition for list and map recursively */}}
+{{- define "schemaElementType" }}
+	{{- if or (eq .Type "list") (eq .Type "map") }}
+		{{- if .ElementType }}
+			{{- template "schemaElementType" .ElementType }}
+		{{- else }}
+			{{- fail `"type" is "list" or "map", but no "element-type" provided` }}
+		{{- end }}
+	{{- else if eq .Type "object" }}
+		{{- if .AttrTypes }}
+			{{- template "schemaAttrTypes" .AttrTypes }}
+		{{- else }}
+			{{- fail `"type" is "object", but no "attr-types" are provided` }}
+		{{- end }}
+	{{- else }}
+		types.{{ .Type | pascalcase }}Type,
+	{{- end }}
+{{- end }}
+
+{{- /* Return AttrTypes part of schema definition for objects recursively */}}
+{{- define "schemaAttrTypes" }}
+	types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			{{- range . }}
+				{{- if eq .Type "list" }}
+					{{- if .ElementType }}
+						"{{ .Name }}": types.ListType {
+							ElemType: {{ template "schemaElementType" .ElementType }}
+						},
+					{{- else }}
+						{{- fail `"type" is "list", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "map" }}
+					{{- if .ElementType }}
+						"{{ .Name }}": types.MapType {
+							ElemType: {{ template "schemaElementType" .ElementType }}
+						},
+					{{- else }}
+						{{- fail `"type" is "map", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "object" }}
+					{{- if .AttrTypes }}
+						"{{ .Name }}": types.MapType{
+							ElemType: {{ template "schemaAttrTypes" .AttrTypes }},
+						},
+					{{- else }}
+						{{- fail `"type" is "object", but no "attr-types" are provided` }}
+					{{- end }}
+				{{- else }}
+					"{{ .Name }}": types.{{ .Type | pascalcase }}Type,
+				{{- end }}
+			{{- end }}
+		},
+	},
+{{- end }}
+
+package {{ .PackageName }}
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	{{ if $requireAttr }}"github.com/hashicorp/terraform-plugin-framework/attr"{{ end }}
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	{{ if $requireBasetypes }}"github.com/hashicorp/terraform-plugin-framework/types/basetypes"{{ end }}
+
+	"github.com/lxc/terraform-provider-incus/internal/common"
+	"github.com/lxc/terraform-provider-incus/internal/errors"
+	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
+)
+
+type {{ .Name | pascalcase }}DataSourceModel struct {
+	{{ .ObjectNamePropertyName | pascalcase }} types.String `tfsdk:"{{ .ObjectNamePropertyName }}"`
+	{{- if .ExtraIDAttribute.Name }}
+		{{ .ExtraIDAttribute.Name | pascalcase }} types.{{ .ExtraIDAttribute.Type | pascalcase }} `tfsdk:"{{ .ExtraIDAttribute.Name }}"`
+	{{- end }}
+	{{ if .HasParent -}}
+		{{ .ParentName | pascalcase }} types.String `tfsdk:"{{ .ParentName }}"`
+	{{- end }}
+	{{- if .HasProject }}
+		Project     types.String `tfsdk:"project"`
+	{{- end }}
+	Target      types.String `tfsdk:"target"`
+	Remote      types.String `tfsdk:"remote"`
+
+	Description types.String `tfsdk:"description"`
+	Config      types.Map    `tfsdk:"config"`
+	{{- with .HasStatus }}
+		Status types.String `tfsdk:"status"`
+	{{- end }}
+	{{- with .HasLocation }}
+		Location types.String `tfsdk:"location"`
+	{{- end }}
+	{{- with .HasLocations }}
+		Locations types.List `tfsdk:"locations"`
+	{{- end }}
+
+	{{ if $hasExtraAttributes }}// Extra attributes.{{- end }}
+	{{- range .ExtraAttributes }}
+		{{- if eq .Type "_device" }}
+			Devices types.Set `tfsdk:"device"`
+		{{- else }}
+			{{ .Name | pascalcase}} types.{{ .Type | pascalcase }} `tfsdk:"{{ .Name }}"`
+		{{- end }}
+	{{- end }}
+}
+
+type {{ .Name | pascalcase }}DataSource struct {
+	provider *provider_config.IncusProviderConfig
+}
+
+func New{{ .Name | pascalcase }}DataSource() datasource.DataSource {
+	return &{{ .Name | pascalcase }}DataSource{}
+}
+
+func (d *{{ .Name | pascalcase }}DataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = fmt.Sprintf("%s_{{ .Name }}", req.ProviderTypeName)
+}
+
+func (d *{{ .Name | pascalcase }}DataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"{{ .ObjectNamePropertyName }}": schema.StringAttribute{
+				Required: true,
+			},
+
+			{{ if .ExtraIDAttribute.Name }}
+			"{{ .ExtraIDAttribute.Name }}": schema.{{ .ExtraIDAttribute.Type | pascalcase }}Attribute{
+				Required: true,
+			},
+			{{- end }}
+
+			{{ if .HasParent -}}
+			"{{ .ParentName }}": schema.StringAttribute{
+				Required: true,
+			},
+			{{- end }}
+			{{- if .HasProject }}
+
+			"project": schema.StringAttribute{
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			{{- end }}
+
+			"remote": schema.StringAttribute{
+				Optional: true,
+			},
+
+			"target": schema.StringAttribute{
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+
+			"description": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+			},
+
+			"config": schema.MapAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+
+			{{ with .HasStatus -}}
+			"status": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+			},
+
+			{{ end -}}
+			{{ with .HasLocation -}}
+			"location": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+			},
+
+			{{ end -}}
+			{{ with .HasLocations -}}
+			"locations": schema.ListAttribute{
+				Optional: true,
+				Computed: true,
+				ElementType: types.StringType,
+			},
+
+			{{ end -}}
+			{{ $extraAttributesContainDevice := false }}
+			{{ if $hasExtraAttributes }}// Extra attributes.{{ end }}
+			{{- range .ExtraAttributes }}
+				{{- /* Type "_device" is skipped here, since it is represented as block. */}}
+				{{- if ne .Type "_device" }}
+					"{{ .Name }}": schema.{{ .Type | pascalcase }}Attribute{
+						Optional: true,
+						Computed: true,
+						{{- if or (eq .Type "list") (eq .Type "map") }}
+							{{- if .ElementType }}
+								ElementType: {{- template "schemaElementType" .ElementType }}
+							{{- else }}
+								{{ fail `"type" is "list" or "map", but no "element-type" provided` }}
+							{{- end }}
+						{{- else if eq .Type "object" }}
+							{{- if .AttrTypes }}
+								AttrTypes: {{- template "schemaAttrTypes" .AttrTypes }}
+							{{- else }}
+								{{ fail `"type" is "object", but no "attr-types" are provided` }}
+							{{- end }}
+						{{- end }}
+					},
+				{{- end }}
+
+			{{ end }}
+		},
+		{{- if $extraAttributesHasDevice }}
+			Blocks: map[string]schema.Block{
+				"device": schema.SetNestedBlock{
+					NestedObject: schema.NestedBlockObject{
+						Attributes: map[string]schema.Attribute{
+							"name": schema.StringAttribute{
+								Computed: true,
+							},
+
+							"type": schema.StringAttribute{
+								Computed: true,
+							},
+
+							"properties": schema.MapAttribute{
+								Computed:    true,
+								ElementType: types.StringType,
+							},
+						},
+					},
+				},
+			},
+		{{- end }}
+	}
+}
+
+func (d *{{ .Name | pascalcase }}DataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	data := req.ProviderData
+	if data == nil {
+		return
+	}
+
+	provider, ok := data.(*provider_config.IncusProviderConfig)
+	if !ok {
+		resp.Diagnostics.Append(errors.NewProviderDataTypeError(req.ProviderData))
+		return
+	}
+
+	d.provider = provider
+}
+
+func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state {{ .Name | pascalcase }}DataSourceModel
+	var diags diag.Diagnostics
+
+	diags = req.Config.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	providerRemote := state.Remote.ValueString()
+	{{- if .HasProject }}
+		providerProjectName := state.Project.ValueString()
+	{{- else }}
+		providerProjectName := ""
+	{{- end }}
+	providerTarget := state.Target.ValueString()
+	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+		return
+	}
+	{{- if .ExtraIDAttribute.Name }}
+
+		{{ .ExtraIDAttribute.Name | camelcase }}Name := state.{{ .ExtraIDAttribute.Name | pascalcase }}.ValueString()
+	{{- end }}
+	{{ if .HasParent -}}
+		{{ .ParentName | camelcase }}Name := state.{{ .ParentName | pascalcase }}.ValueString()
+	{{- end }}
+
+	{{ .Name | camelcase }}Name := state.{{ .ObjectNamePropertyName | pascalcase }}.ValueString()
+	{{ .Name | camelcase }}, _, err := server.{{ .IncusGetMethod }}({{ if .HasParent }}{{ .ParentName | camelcase }}Name, {{ end -}}{{ if .ExtraIDAttribute.Name }}{{ .ExtraIDAttribute.Name | camelcase }}Name, {{ end -}}{{ .Name | camelcase }}Name)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve existing {{ .Name | words }} %q", {{ .Name | camelcase }}Name), err.Error())
+		return
+	}
+
+	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig({{ .Name | camelcase }}.Config), state.Config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	{{- if $extraAttributesHasDevice }}
+
+	devices, diags := common.ToDeviceSetType(ctx, {{ .Name | camelcase }}.Devices)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	state.Devices = devices
+	{{- end }}
+	{{- if .HasLocations }}
+
+	locations, diags := types.ListValueFrom(ctx, types.StringType, {{ .Name | camelcase }}.Locations)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+	{{- end }}
+
+	state.{{ .ObjectNamePropertyName | pascalcase }} = types.StringValue({{ .Name | camelcase }}.{{ .ObjectNamePropertyName | pascalcase }})
+	{{- if .ExtraIDAttribute.Name }}
+		state.{{ .ExtraIDAttribute.Name | pascalcase }} = types.{{ .ExtraIDAttribute.Type | pascalcase }}Value({{ .Name | camelcase }}.{{ .ExtraIDAttribute.Name | pascalcase }})
+	{{- end }}
+	state.Description = types.StringValue({{ .Name | camelcase }}.Description)
+	{{- if .HasStatus }}
+		state.Status = types.StringValue({{ .Name | camelcase }}.Status)
+	{{- end }}
+	{{- if .HasLocation }}
+		state.Location = types.StringValue({{ .Name | camelcase }}.Location)
+	{{- end }}
+	{{- if .HasLocations }}
+		state.Locations = locations
+	{{- end }}
+	state.Config = config
+
+	{{ if $hasExtraAttributes }}// Extra attributes.{{ end }}
+	{{- range .ExtraAttributes }}
+		{{- /* Type "_device" is skipped here, since it is already handled above. */}}
+		{{- if ne .Type "_device" }}
+			{{- if or (eq .Type "list") (eq .Type "map") (eq .Type "object") }}
+				{{- if eq .Type "list" }}
+					{{- if .ElementType }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ListTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "list", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "map" }}
+					{{- if .ElementType }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}MapTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "map", but no "element-type" provided` }}
+					{{- end }}
+				{{- else if eq .Type "object" }}
+					{{- if .AttrTypes }}
+						state.{{ .Name | pascalcase }}, diags = to{{ $.Name | pascalcase }}{{ .Name | pascalcase }}ObjectTypeValue(ctx, {{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+					{{- else }}
+						{{ fail `"type" is "object", but no "attr-types" are provided` }}
+					{{- end }}
+				{{- end }}
+				resp.Diagnostics.Append(diags...)
+				if diags.HasError() {
+					return
+				}
+			{{- else }}
+				state.{{ .Name | pascalcase }} = types.{{ .Type | pascalcase }}Value({{ $.Name | camelcase }}.{{ .Name | pascalcase }})
+			{{- end }}
+		{{- end }}
+	{{- end }}
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+}
+
+{{/* Generate helper functions to convert nested types recursively */}}
+{{ range .ExtraAttributes }}
+	{{ $args := dict "namePrefix" ($.Name | pascalcase) "attr" . }}
+	{{ template "generateHelperFunctions" $args }}
+{{ end }}
+
+{{ define "generateHelperFunctions" }}
+	{{ $global := .global }}
+	{{ $namePrefix := .namePrefix }}
+	{{ with .attr }}
+		{{ if eq .Type "list" }}
+			{{ $args := dict "namePrefix" (printf "%s_%s" $namePrefix .Name) "attr" .ElementType }}
+			{{ template "getListTypeFunc" $args }}
+			{{ template "toListTypeValue" $args }}
+			{{ template "generateHelperFunctions" $args }}
+		{{ else if eq .Type "map" }}
+			{{ $args := dict "namePrefix" (printf "%s_%s" $namePrefix .Name) "attr" .ElementType }}
+			{{ template "getMapTypeFunc" $args }}
+			{{ template "toMapTypeValue" $args }}
+			{{ template "generateHelperFunctions" $args }}
+		{{ else if eq .Type "object" }}
+			{{ $namePrefix = printf "%s_%s" $namePrefix .Name }}
+			{{ $args := dict "namePrefix" $namePrefix "attr" . }}
+			{{ template "getObjectTypeFunc" $args }}
+			{{ template "toObjectTypeValue" $args }}
+			{{ range .AttrTypes }}
+				{{ $args := dict "namePrefix" $namePrefix "attr" . }}
+				{{ template "generateHelperFunctions" $args }}
+			{{ end }}
+		{{ end }}
+	{{ end }}
+{{ end }}
+
+{{/* helper function to get a list type */}}
+{{- define "getListTypeFunc" }}
+	{{- $namePrefix := .namePrefix }}
+	{{- with .attr }}
+		func get{{ $namePrefix | pascalcase }}ListType() types.ListType {
+			return types.ListType{
+				{{- if eq .Type "list" }}
+					ElemType: types.ListType {
+						ElemType: {{- template "schemaElementType" . }}
+					},
+				{{- else if eq .Type "map" }}
+					ElemType: types.MapType{
+						ElemType: {{- template "schemaElementType" . }}
+					},
+				{{- else if eq .Type "object" }}
+					ElemType: types.MapType{
+						ElemType: {{- template "schemaAttrTypes" .AttrTypes }}
+					},
+				{{- else }}
+					ElemType: types.{{ .Type | pascalcase }}Type,
+				{{- end }}
+			}
+		}
+	{{- end }}
+{{- end }}
+
+{{/* helper function to converty any to types.List */}}
+{{- define "toListTypeValue" }}
+	{{- $namePrefix := .namePrefix }}
+	{{- with .attr }}
+		func to{{ $namePrefix | pascalcase }}ListTypeValue(ctx context.Context, in any) (types.List, diag.Diagnostics) {
+			{{- if or (eq .Type "list") (eq .Type "map") (eq .Type "object") }}
+				{{ $namePrefix | camelcase }}ListType := get{{ $namePrefix | pascalcase }}ListType()
+				nilList := types.ListNull({{ $namePrefix | camelcase }}ListType)
+
+				{{ $namePrefix | camelcase }}Items, err := common.ToMapStringAnySlice(in)
+				if err != nil {
+					return nilList, diag.Diagnostics{diag.NewErrorDiagnostic("to slice of maps conversion failed", err.Error())}
+				}
+
+				{{ $namePrefix | camelcase }}List := make([]attr.Value, 0, len({{ $namePrefix | camelcase }}Items))
+				for _, {{ $namePrefix | camelcase }}Item := range {{ $namePrefix | camelcase }}Items {
+					objectValue, diags := to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}{{ .Type | pascalcase }}TypeValue(ctx, {{ $namePrefix | camelcase }}Item)
+					if diags.HasError() {
+						return nilList, diags
+					}
+
+					{{ $namePrefix | camelcase }}List = append({{ $namePrefix | camelcase }}List, objectValue)
+				}
+
+				return types.ListValue({{ $namePrefix | camelcase }}ListType, {{ $namePrefix | camelcase }}List)
+			{{- else }}
+				return types.ListValueFrom(ctx, types.{{ .Type | pascalcase}}Type, in)
+			{{- end }}
+		}
+	{{- end }}
+{{- end }}
+
+{{/* helper function to get a map type */}}
+{{- define "getMapTypeFunc" }}
+	{{- $namePrefix := .namePrefix }}
+	{{- with .attr }}
+		func get{{ $namePrefix | pascalcase }}MapType() types.MapType {
+			return types.MapType{
+				{{- if eq .Type "list" }}
+					ElemType: types.ListType {
+						ElemType: {{- template "schemaElementType" . }}
+					},
+				{{- else if eq .Type "map" }}
+					ElemType: types.MapType{
+						ElemType: {{- template "schemaElementType" . }}
+					},
+				{{- else if eq .Type "object" }}
+					ElemType: types.MapType{
+						ElemType: {{- template "schemaAttrTypes" .AttrTypes }}
+					},
+				{{- else }}
+					ElemType: types.{{ .Type | pascalcase }}Type,
+				{{- end }}
+			}
+		}
+	{{- end }}
+{{- end }}
+
+{{/* helper function to convert map[string]any to types.Map */}}
+{{- define "toMapTypeValue" }}
+	{{- $namePrefix := .namePrefix }}
+	{{- with .attr }}
+		func to{{ $namePrefix | pascalcase }}MapTypeValue(ctx context.Context, in map[string]any) (types.Map, diag.Diagnostics) {
+			{{- if or (eq .Type "list") (eq .Type "map") (eq .Type "object") }}
+				{{ $namePrefix | camelcase }}MapType := get{{ $namePrefix | pascalcase }}MapType()
+				nilMap := types.MapNull({{ $namePrefix | camelcase }}MapType)
+
+				{{ $namePrefix | camelcase }}MapAny, err := common.ToMapStringAny(in)
+				if err != nil {
+					return nilMap, diag.Diagnostics{diag.NewErrorDiagnostic("to map conversion failed", err.Error())}
+				}
+
+				{{ $namePrefix | camelcase }}Map := make(map[string]attr.Value, len({{ $namePrefix | camelcase }}MapAny))
+				for key, itemAny := range {{ $namePrefix | camelcase }}MapAny {
+				{{- if eq .Type "list" }}
+						item, err := common.ToMapStringAnySlice(itemAny)
+						if err != nil {
+							return nilMap, diag.Diagnostics{diag.NewErrorDiagnostic("to map conversion failed", err.Error())}
+						}
+
+						objectValue, diags := to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}ListTypeValue(ctx, item)
+						if diags.HasError() {
+							return nilMap, diags
+						}
+				{{- else if eq .Type "map" }}
+					{{ fail `nesting "map" in "map" is not supported by Terraform` }}
+				{{- else if eq .Type "object" }}
+						item, err := common.ToMapStringAny(itemAny)
+						if err != nil {
+							return nilMap, diag.Diagnostics{diag.NewErrorDiagnostic("to map conversion failed", err.Error())}
+						}
+
+						objectValue, diags := to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}ObjectTypeValue(ctx, item)
+						if diags.HasError() {
+							return nilMap, diags
+						}
+				{{- end }}
+						{{ $namePrefix | camelcase }}Map[key] = objectValue
+					}
+
+					return types.MapValue({{ $namePrefix | camelcase }}MapType, {{ $namePrefix | camelcase }}Map)
+			{{- else }}
+				return types.MapValueFrom(ctx, types.{{ .Type | pascalcase}}Type, in)
+			{{- end }}
+		}
+	{{- end }}
+{{- end }}
+
+{{/* helper function to get an object type */}}
+{{- define "getObjectTypeFunc" }}
+	{{- $namePrefix := .namePrefix }}
+	{{- with .attr }}
+		func get{{ $namePrefix | pascalcase }}ObjectType() types.ObjectType {
+			return types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					{{- range .AttrTypes }}
+						{{- if eq .Type "list" }}
+							"{{ .Name }}": types.ListType {
+								ElemType: {{- template "schemaElementType" . }}
+							},
+						{{- else if eq .Type "map" }}
+							"{{ .Name }}": types.MapType{
+								ElemType: {{- template "schemaElementType" . }}
+							},
+						{{- else if eq .Type "object" }}
+							"{{ .Name }}": types.ObjectType{
+								ElemType: {{- template "schemaAttrTypes" . }}
+							},
+						{{- else }}
+							"{{ .Name }}": types.{{ .Type | pascalcase }}Type,
+						{{- end }}
+					{{- end }}
+				},
+			}
+		}
+	{{- end }}
+{{- end }}
+
+{{/* helper function to convert map[string]any to an basetypes.ObjectValue */}}
+{{ define "toObjectTypeValue" }}
+	{{ $namePrefix := .namePrefix }}
+	{{ with .attr }}
+		func to{{ $namePrefix | pascalcase }}ObjectTypeValue(ctx context.Context, in map[string]any) (obj basetypes.ObjectValue, diags diag.Diagnostics) {
+			{{ $namePrefix | camelcase }}ObjectType := get{{ $namePrefix | pascalcase }}ObjectType()
+			nilObject := types.ObjectNull({{ $namePrefix | camelcase }}ObjectType.AttrTypes)
+
+			res := map[string]attr.Value{}
+			{{- range .AttrTypes }}
+				{{- if eq .Type "list" }}
+					res["{{ .Name }}"], diags = to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}ListTypeValue(ctx, in["{{ .Name }}"])
+					if diags.HasError() {
+						return nilObject, diags
+					}
+				{{- else if eq .Type "map" }}
+					res["{{ .Name }}"], diags = to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}MapTypeValue(ctx, in["{{ .Name }}"])
+					if diags.HasError() {
+						return nilObject, diags
+					}
+				{{- else if eq .Type "object" }}
+					res["{{ .Name }}"], diags = to{{ $namePrefix | pascalcase }}{{ .Name | pascalcase }}ObjectTypeValue(ctx, in["{{ .Name }}"])
+					if diags.HasError() {
+						return nilObject, diags
+					}
+				{{- else }}
+					{{ .Name | camelcase }}{{ .Type | pascalcase}}Value := types.{{ .Type | pascalcase }}Null()
+					{{ .Name | camelcase }}Any, ok := in["{{ .Name }}"]
+					if ok {
+						{{ .Name | camelcase }}{{ .Type | pascalcase}}, ok := {{ .Name | camelcase }}Any.({{ .Type | camelcase }})
+						if ok {
+							{{ .Name | camelcase }}{{ .Type | pascalcase}}Value = types.{{ .Type | pascalcase }}Value({{ .Name | camelcase }}{{ .Type | pascalcase}})
+						}
+					}
+					res["{{ .Name }}"] = {{ .Name | camelcase }}{{ .Type | pascalcase}}Value
+
+				{{ end }}
+			{{- end }}
+
+			obj, diags = types.ObjectValue({{ $namePrefix | camelcase }}ObjectType.AttrTypes, res)
+			if diags.HasError() {
+				return nilObject, diags
+			}
+
+			return obj, nil
+		}
+	{{ end }}
+{{ end }}

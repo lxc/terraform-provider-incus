@@ -1,25 +1,25 @@
-# incus_profile
+# incus_instance
 
-Provides information about an Incus profile.
-See Incus profile [configuration reference](https://linuxcontainers.org/incus/docs/main/profiles/) for more details.
+Provides information about an Incus instance.
+See Incus instance [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/instance_config/) for more details.
 
 ## Example Usage
 
 ```hcl
-data "incus_profile" "this" {
+data "incus_instance" "this" {
   name = "default"
 }
 
-output "profile_name" {
-  value = data.incus_profile.this.name
+output "instance_name" {
+  value = data.incus_instance.this.name
 }
 ```
 
 ## Argument Reference
 
-* `name` - **Required** - Name of the profile.
+* `name` - **Required** - Name of the instance.
 
-* `project` - *Optional* - Name of the project where the profile is be stored.
+* `project` - *Optional* - Name of the project where the instance is be stored.
 
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
@@ -28,12 +28,26 @@ output "profile_name" {
 
 ## Attribute Reference
 
-* `description` - Description of the profile.
+* `description` - Description of the instance.
 
 * `config` - Map of key/value pairs of config settings.
   [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/)
 
+* `status` - Status of the instance.
+
+* `location` - Location of the instance.
+
 * `device` - Device definitions. See reference below.
+
+* `type` - Instance type.
+
+* `architecture` - Architecture name.
+
+* `ephemeral` - Whether the instance is ephemeral (deleted on shutdown).
+
+* `profiles` - List of profiles applied to the instance.
+
+* `stateful` - Whether the instance is stateful.
 
 The `device` blocks support:
 
