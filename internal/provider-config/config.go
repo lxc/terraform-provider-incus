@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -25,12 +26,13 @@ var mutex sync.RWMutex
 // IncusProviderRemoteConfig represents Incus remote/server data as defined
 // in a user's Terraform schema/configuration.
 type IncusProviderRemoteConfig struct {
-	Name         string
-	Address      string
-	Port         string
-	Token        string
-	Scheme       string
-	Bootstrapped bool
+	Name               string
+	Address            string
+	Protocol           string
+	AuthenticationType string
+	Token              string
+	Public             bool
+	Bootstrapped       bool
 }
 
 // IncusProviderConfig contains the Provider configuration and initialized
@@ -220,15 +222,15 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 		return nil
 	}
 
-	daemonAddr, err := determineIncusDaemonAddr(remote)
+	parsedURL, err := url.Parse(remote.Address)
 	if err != nil {
-		return fmt.Errorf("Unable to determine daemon address for remote %q: %v", remote.Name, err)
+		return fmt.Errorf("Unable to parse address for remote %q: %v", remote.Name, err)
 	}
 
-	incusRemote := incus_config.Remote{Addr: daemonAddr, Protocol: "incus"}
+	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: "incus"}
 	p.setIncusConfigRemote(remote.Name, incusRemote)
 
-	if remote.Scheme == "https" {
+	if parsedURL.Scheme == "https" || parsedURL.Port() != "" {
 		// If the Incusremote's certificate does not exist on the client...
 		p.mux.RLock()
 		certPath := p.incusConfig.ServerCertPath(remote.Name)
@@ -380,22 +382,6 @@ func connectToIncusServer(instServer incus.InstanceServer) error {
 	}
 
 	return nil
-}
-
-// determineIncusDaemonAddr determines address of the Incusserver daemon.
-func determineIncusDaemonAddr(remote IncusProviderRemoteConfig) (string, error) {
-	var daemonAddr string
-
-	if remote.Address != "" {
-		switch remote.Scheme {
-		case "unix", "":
-			daemonAddr = fmt.Sprintf("unix:%s", remote.Address)
-		case "https":
-			daemonAddr = fmt.Sprintf("https://%s:%s", remote.Address, remote.Port)
-		}
-	}
-
-	return daemonAddr, nil
 }
 
 // determineIncusDir determines which standard Incus directory contains a writable UNIX socket.
