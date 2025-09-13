@@ -74,7 +74,7 @@ func (r StoragePoolResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("dir", "zfs", "lvm", "lvmcluster", "btrfs", "ceph", "cephfs", "cephobject", "linstor"),
+					stringvalidator.OneOf("dir", "zfs", "lvm", "lvmcluster", "btrfs", "ceph", "cephfs", "cephobject", "linstor", "truenas"),
 				},
 			},
 
@@ -387,6 +387,11 @@ func (_ StoragePoolModel) ComputedKeys(driver string) []string {
 			"linstor.volume.prefix",
 			"drbd.auto_add_quorum_tiebreaker",
 			"drbd.on_no_quorum",
+		}
+	case "truenas":
+		keys = []string{
+			"source",
+			"truenas.dataset",
 		}
 	}
 
