@@ -14,7 +14,7 @@ require (
 	github.com/lmittmann/tint v1.1.2
 	github.com/lxc/incus/v6 v6.16.1-0.20250908213259-30be6404433b
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/spf13/pflag v1.0.7
+	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.36.0
 	golang.org/x/text v0.28.0
