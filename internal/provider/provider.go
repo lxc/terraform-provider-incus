@@ -24,23 +24,25 @@ import (
 	"github.com/lxc/terraform-provider-incus/internal/profile"
 	"github.com/lxc/terraform-provider-incus/internal/project"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
+	provider_validators "github.com/lxc/terraform-provider-incus/internal/provider-validators"
 	"github.com/lxc/terraform-provider-incus/internal/server"
 	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
 
 // IncusProviderRemoteModel represents provider's schema remote.
 type IncusProviderRemoteModel struct {
-	Name    types.String `tfsdk:"name"`
-	Address types.String `tfsdk:"address"`
-	Port    types.String `tfsdk:"port"`
-	Token   types.String `tfsdk:"token"`
-	Scheme  types.String `tfsdk:"scheme"`
-	Default types.Bool   `tfsdk:"default"`
+	Name               types.String `tfsdk:"name"`
+	Address            types.String `tfsdk:"address"`
+	Protocol           types.String `tfsdk:"protocol"`
+	AuthenticationType types.String `tfsdk:"authentication_type"`
+	Token              types.String `tfsdk:"token"`
+	Public             types.Bool   `tfsdk:"public"`
 }
 
 // IncusProviderModel represents provider's schema.
 type IncusProviderModel struct {
 	Remotes                    []IncusProviderRemoteModel `tfsdk:"remote"`
+	DefaultRemote              types.String               `tfsdk:"default_remote"`
 	ConfigDir                  types.String               `tfsdk:"config_dir"`
 	Project                    types.String               `tfsdk:"project"`
 	AcceptRemoteCertificate    types.Bool                 `tfsdk:"accept_remote_certificate"`
@@ -88,6 +90,10 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 				Optional:    true,
 				Description: "The project where project-scoped resources will be created. Can be overridden in individual resources. (default = default)",
 			},
+			"default_remote": schema.StringAttribute{
+				Optional:    true,
+				Description: "The default remote to use when no other remote is defined in a resource.",
+			},
 		},
 
 		Blocks: map[string]schema.Block{
@@ -97,36 +103,40 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							Required:    true,
-							Description: "Name of the Incus remote. Name is used to locate server certificate if incus_scheme is set to \"https\".",
+							Description: "Name of the Incus remote.",
 						},
 
 						"address": schema.StringAttribute{
 							Optional:    true,
-							Description: "The FQDN or IP where the Incus daemon can be contacted. (default = \"\" (read from lxc config))",
+							Description: "The URL of the Incus host. The default will be the path to the local unix socket, or leaving it as an empty string will use the default socket path.",
 						},
 
-						"port": schema.StringAttribute{
+						"protocol": schema.StringAttribute{
 							Optional:    true,
-							Description: "Port Incus Daemon API is listening on. (default = 8443)",
-						},
-
-						"scheme": schema.StringAttribute{
-							Optional:    true,
-							Description: "Unix (unix) or HTTPs (https). (default = unix)",
+							Description: "Server protocol ( incus, oci or simplestreams )",
 							Validators: []validator.String{
-								stringvalidator.OneOf("unix", "https"),
+								stringvalidator.OneOf("incus", "oci", "simplestreams"),
+							},
+						},
+
+						"public": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Public image server",
+						},
+
+						"authentication_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "Server authentication type, tls or oidc. ( Only for the `incus` protocol )",
+							Validators: []validator.String{
+								stringvalidator.OneOf("tls", "oidc"),
+								provider_validators.CheckProtocol("incus"),
 							},
 						},
 
 						"token": schema.StringAttribute{
 							Optional:    true,
 							Sensitive:   true,
-							Description: "The trust token for the remote.",
-						},
-
-						"default": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Set this remote as default.",
+							Description: "The trust token used for initial authentication with the Incus remote.",
 						},
 					},
 				},
@@ -216,17 +226,20 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	// }
 	envName := os.Getenv("INCUS_REMOTE")
 	if envName != "" {
-		envRemote := provider_config.IncusProviderRemoteConfig{
-			Name:    envName,
-			Address: os.Getenv("INCUS_ADDR"),
-			Port:    os.Getenv("INCUS_PORT"),
-			Token:   os.Getenv("INCUS_TOKEN"),
-			Scheme:  os.Getenv("INCUS_SCHEME"),
+		incusAddress := os.Getenv("INCUS_ADDR")
+
+		environmentRemote := provider_config.IncusProviderRemoteConfig{
+			Name:               envName,
+			Address:            incusAddress,
+			Protocol:           os.Getenv("INCUS_PROTOCOL"),
+			AuthenticationType: os.Getenv("INCUS_AUTHENTICATION_TYPE"),
+			Token:              os.Getenv("INCUS_TOKEN"),
+			Public:             false,
 		}
 
 		// This will be the default remote unless overridden by an
 		// explicitly defined remote in the Terraform configuration.
-		incusProvider.SetRemote(envRemote, true)
+		incusProvider.SetRemote(environmentRemote, true)
 	}
 
 	// Loop over Incus Remotes defined in the schema and create
@@ -240,25 +253,30 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	// in Terraform configurations where the Incus remote might not
 	// exist yet.
 	for _, remote := range data.Remotes {
-		port := remote.Port.ValueString()
-		if port == "" {
-			port = "8443"
+		isDefault := false
+
+		protocol := remote.Protocol.ValueString()
+		if protocol == "" {
+			protocol = "incus"
 		}
 
-		scheme := remote.Scheme.ValueString()
-		if scheme == "" {
-			scheme = "unix"
+		autheticationType := remote.AuthenticationType.ValueString()
+		if autheticationType == "" {
+			autheticationType = "tls"
 		}
 
 		incusProviderRemoteConfig := provider_config.IncusProviderRemoteConfig{
-			Name:    remote.Name.ValueString(),
-			Token:   remote.Token.ValueString(),
-			Address: remote.Address.ValueString(),
-			Port:    port,
-			Scheme:  scheme,
+			Name:               remote.Name.ValueString(),
+			Address:            remote.Address.ValueString(),
+			Protocol:           protocol,
+			AuthenticationType: autheticationType,
+			Token:              remote.Token.ValueString(),
+			Public:             remote.Public.ValueBool(),
 		}
 
-		isDefault := remote.Default.ValueBool()
+		if data.DefaultRemote.ValueString() == remote.Name.ValueString() {
+			isDefault = true
+		}
 		incusProvider.SetRemote(incusProviderRemoteConfig, isDefault)
 	}
 
