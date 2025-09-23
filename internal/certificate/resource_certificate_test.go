@@ -1,4 +1,4 @@
-package config_test
+package certificate_test
 
 import (
 	"fmt"
