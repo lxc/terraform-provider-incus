@@ -1,4 +1,4 @@
-package clustering_test
+package cluster_test
 
 import (
 	"regexp"
