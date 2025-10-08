@@ -121,8 +121,6 @@ func (r IncusNetworkLBResource) Schema(_ context.Context, _ resource.SchemaReque
 
 						"target_port": schema.StringAttribute{
 							Optional:    true,
-							Computed:    true,
-							Default:     stringdefault.StaticString(""),
 							Description: "LB backend target port",
 						},
 					},
