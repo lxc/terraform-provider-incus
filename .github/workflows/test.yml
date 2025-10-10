@@ -31,12 +31,10 @@ jobs:
       TF_ACC: "1"
       GO111MODULE: "on"
       INCUS_REMOTE: local
-      INCUS_ADDR: localhost
-      INCUS_PORT: 8443
       INCUS_STORAGE_BUCKETS_PORT: 8444
+      INCUS_ADDR: https://localhost:8443
       INCUS_GENERATE_CLIENT_CERTS: "true"
       INCUS_ACCEPT_SERVER_CERTIFICATE: "true"
-      INCUS_SCHEME: https
 
     steps:
       - uses: actions/checkout@v5
@@ -57,14 +55,14 @@ jobs:
 
           curl -sL https://pkgs.zabbly.com/get/incus-${{ matrix.incus-version }} | sudo sh
           sudo chmod 666 /var/lib/incus/unix.socket
-          sudo incus admin init --auto --network-port="$INCUS_PORT" --network-address="$INCUS_ADDR"
+          sudo incus admin init --auto --network-port="$( echo $INCUS_ADDR | awk -F[/:] '{print $5}')" --network-address="$( echo $INCUS_ADDR | awk -F[/:] '{print $4}')"
 
           INCUS_TOKEN=$(incus config trust add terraform --quiet)
           incus remote add localhost "${INCUS_TOKEN}"
 
           incus remote add docker https://docker.io --protocol=oci
 
-          incus config set core.storage_buckets_address="$INCUS_ADDR:$INCUS_STORAGE_BUCKETS_PORT"
+          incus config set core.storage_buckets_address="$( echo $INCUS_ADDR | awk -F[/:] '{print $4}'):$INCUS_STORAGE_BUCKETS_PORT"
 
       - name: Configure OVN
         run: |
