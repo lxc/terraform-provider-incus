@@ -416,7 +416,7 @@ func (r StorageBucketResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ StorageBucketModel) ComputedKeys() []string {
+func (StorageBucketModel) ComputedKeys() []string {
 	return []string{
 		"block.filesystem",
 		"block.mount_options",

@@ -574,7 +574,7 @@ func (r StorageVolumeResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ StorageVolumeModel) ComputedKeys() []string {
+func (StorageVolumeModel) ComputedKeys() []string {
 	return []string{
 		"block.filesystem",
 		"block.mount_options",
@@ -582,7 +582,7 @@ func (_ StorageVolumeModel) ComputedKeys() []string {
 	}
 }
 
-func (_ StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceServer, poolName string) ([]string, error) {
+func (StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceServer, poolName string) ([]string, error) {
 	volumePrefix := "volume."
 	inheritedKeys := make([]string, 0)
 
