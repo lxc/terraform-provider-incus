@@ -36,6 +36,7 @@ linters:
           arguments:
             - "check-private-receivers"
             - "disable-stuttering-check"
+        - name: indent-error-flow
         - name: modifies-value-receiver
         - name: range-val-address
         - name: range-val-in-closure
