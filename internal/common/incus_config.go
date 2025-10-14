@@ -71,7 +71,7 @@ func ToNullableConfig(config map[string]string) map[string]*string {
 
 	for k := range config {
 		// Copy the value.
-		v := string(config[k])
+		v := config[k]
 		nullConfig[k] = &v
 	}
 
@@ -141,7 +141,7 @@ func StripConfig(resConfig map[string]string, modelConfig types.Map, computedKey
 				config[k] = nil
 			} else {
 				// Copy the value.
-				v := string(resConfig[k])
+				v := resConfig[k]
 				config[k] = &v
 			}
 		}
