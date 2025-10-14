@@ -406,7 +406,7 @@ func ToNetworkForwardPortSetType(ctx context.Context, ports []api.NetworkForward
 		return nilSet, nil
 	}
 
-	var portList []attr.Value
+	portList := make([]attr.Value, 0, len(ports))
 	for _, port := range ports {
 		portMap := map[string]attr.Value{
 			"description":    types.StringValue(port.Description),

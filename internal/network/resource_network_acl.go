@@ -62,6 +62,7 @@ func NewNetworkAclResource() resource.Resource {
 func (r *NetworkAclResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = fmt.Sprintf("%s_network_acl", req.ProviderTypeName)
 }
+
 func (r *NetworkAclResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	aclRuleObjectType := getAclRuleObjectType()
 
@@ -446,7 +447,7 @@ func ToNetworkAclRulesListType(networkACLRules []api.NetworkACLRule) (types.Set,
 		return nilSet, nil
 	}
 
-	var aclRuleList []attr.Value
+	aclRuleList := make([]attr.Value, 0, len(networkACLRules))
 	for _, rule := range networkACLRules {
 		// Create the attribute map for each rule
 		aclRuleMap := map[string]attr.Value{
