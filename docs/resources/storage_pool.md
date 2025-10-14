@@ -10,6 +10,7 @@ Manages an Incus storage pool.
 resource "incus_storage_pool" "pool1" {
   name   = "mypool"
   driver = "dir"
+
   config = {
     source = "/var/lib/incus/storage-pools/mypool"
   }

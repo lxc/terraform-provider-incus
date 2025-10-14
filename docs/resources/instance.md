@@ -13,7 +13,7 @@ resource "incus_instance" "instance1" {
 
   config = {
     "boot.autostart" = true
-    "limits.cpu" = 2
+    "limits.cpu"     = 2
   }
 }
 ```
@@ -38,6 +38,7 @@ resource "incus_instance" "instance1" {
   device {
     name = "volume1"
     type = "disk"
+
     properties = {
       path   = "/mount/point/in/instance"
       source = incus_storage_volume.volume1.name
@@ -59,6 +60,7 @@ resource "incus_instance" "instance2" {
   device {
     name = "http"
     type = "proxy"
+
     properties = {
       # Listen on Incus host's TCP port 80
       listen = "tcp:0.0.0.0:80"
@@ -93,8 +95,8 @@ resource "incus_instance" "instance2" {
 
 ```hcl
 resource "incus_instance" "instance1" {
-  project = "default"
-  name    = "instance1"
+  project     = "default"
+  name        = "instance1"
   source_file = "/path/to/backup.tar.gz"
 }
 ```
@@ -108,13 +110,14 @@ provided. The name of the pool is given as the `pool` attribute in
 
 ```hcl
 resource "incus_instance" "instance1" {
-  project = "default"
-  name    = "instance1"
+  project     = "default"
+  name        = "instance1"
   source_file = "/path/to/backup.tar.gz"
 
   device = {
     name = "storage"
     type = "disk"
+
     properties = {
       path = "/"
       pool = "pool-name"
@@ -147,7 +150,7 @@ resource "incus_instance" "instance1" {
   image   = "images:debian/12"
 
   wait_for {
-    type = "delay"
+    type  = "delay"
     delay = "30s"
   }
 }
@@ -192,12 +195,12 @@ resource "incus_instance" "instance1" {
 
   wait_for {
     type = "ipv4"
-    nic = "eth0"
+    nic  = "eth0"
   }
 
   wait_for {
     type = "ipv6"
-    nic = "eth0"
+    nic  = "eth0"
   }
 }
 ```

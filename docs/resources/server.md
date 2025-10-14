@@ -25,6 +25,7 @@ resource "incus_server" "test" {
 ```hcl
 locals {
   remote = "cluster"
+
   bgp_routerids = {
     "node1" = "192.0.2.100"
     "node2" = "192.0.2.101"
@@ -34,6 +35,7 @@ locals {
 
 resource "incus_server" "local" {
   for_each = tomap(local.bgp_routerids)
+
   remote = local.remote
   target = each.key
 

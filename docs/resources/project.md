@@ -8,6 +8,7 @@ Manages an Incus project.
 resource "incus_project" "project" {
   name        = "project1"
   description = "Terraform provider example project"
+
   config = {
     "features.storage.volumes" = false
     "features.images"          = false
