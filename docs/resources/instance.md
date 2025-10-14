@@ -32,7 +32,7 @@ resource "incus_storage_volume" "volume1" {
 }
 
 resource "incus_instance" "instance1" {
-  name  = "%s"
+  name  = "instance1"
   image = "ubuntu"
 
   device {
