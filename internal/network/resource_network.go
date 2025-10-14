@@ -397,7 +397,7 @@ func (r NetworkResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 }
 
 // ComputedKeys returns list of computed Incus config keys.
-func (_ NetworkModel) ComputedKeys() []string {
+func (NetworkModel) ComputedKeys() []string {
 	return []string{
 		"bridge.mtu",
 		"ipv4.address",
