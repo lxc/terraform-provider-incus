@@ -99,7 +99,7 @@ func (r *ClusterGroupMemberResource) Create(ctx context.Context, req resource.Cr
 
 	clusterMemberNames, err := server.GetClusterMemberNames()
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve cluster member names"), err.Error())
+		resp.Diagnostics.AddError("Failed to retrieve cluster member names", err.Error())
 		return
 	}
 
