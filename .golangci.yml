@@ -11,6 +11,7 @@ linters:
     - prealloc
     - staticcheck
     - testifylint
+    - thelper
     - unused
     - whitespace
   exclusions:
