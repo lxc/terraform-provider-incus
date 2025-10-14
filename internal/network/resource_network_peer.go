@@ -330,7 +330,6 @@ func (r IncusNetworkPeerResource) SyncState(ctx context.Context, tfState *tfsdk.
 	peerName := m.Name.ValueString()
 	networkName := m.Network.ValueString()
 
-	fmt.Printf("%s:%s\n", peerName, networkName)
 	networkPeer, _, err := server.GetNetworkPeer(networkName, peerName)
 	if err != nil {
 		if errors.IsNotFoundError(err) {
