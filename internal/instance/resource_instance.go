@@ -1531,7 +1531,7 @@ func prepareInstancesPost(ctx context.Context, plan InstanceModel) (api.Instance
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ InstanceModel) ComputedKeys() []string {
+func (InstanceModel) ComputedKeys() []string {
 	return []string{
 		"environment.",
 		"image.",
