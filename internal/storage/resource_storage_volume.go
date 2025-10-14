@@ -240,13 +240,14 @@ func (r StorageVolumeResource) Create(ctx context.Context, req resource.CreateRe
 	if !plan.SourceVolume.IsNull() {
 		r.copyStoragePoolVolume(ctx, resp, &plan)
 		return
-	} else if !plan.SourceFile.IsNull() {
+	}
+
+	if !plan.SourceFile.IsNull() {
 		r.importStoragePoolVolume(ctx, resp, &plan)
 		return
-	} else {
-		r.createStoragePoolVolume(ctx, resp, &plan)
-		return
 	}
+
+	r.createStoragePoolVolume(ctx, resp, &plan)
 }
 
 func (r StorageVolumeResource) createStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel) {

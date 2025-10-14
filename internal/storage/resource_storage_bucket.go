@@ -173,10 +173,9 @@ func (r StorageBucketResource) Create(ctx context.Context, req resource.CreateRe
 	if !plan.SourceFile.IsNull() {
 		r.importStoragePoolBucket(ctx, resp, &plan)
 		return
-	} else {
-		r.createStoragePoolBucket(ctx, resp, &plan)
-		return
 	}
+
+	r.createStoragePoolBucket(ctx, resp, &plan)
 }
 
 func (r StorageBucketResource) createStoragePoolBucket(ctx context.Context, resp *resource.CreateResponse, plan *StorageBucketModel) {
