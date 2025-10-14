@@ -1,11 +1,15 @@
 version: "2"
 linters:
   enable:
+    - bodyclose
     - errcheck
     - godot
+    - govet
     - ineffassign
     - misspell
+    - nakedret
     - staticcheck
+    - testifylint
     - unused
     - whitespace
   exclusions:
