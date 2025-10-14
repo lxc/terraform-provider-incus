@@ -100,7 +100,11 @@ func (p *IncusProviderConfig) InstanceServer(remoteName string, project string, 
 		return nil, fmt.Errorf("Remote %q (%s) is not an InstanceServer", remoteName, connInfo.Protocol)
 	}
 
-	instServer := server.(incus.InstanceServer)
+	instServer, ok := server.(incus.InstanceServer)
+	if !ok {
+		return nil, fmt.Errorf("Remote %q (%s) is not an InstanceServer", remoteName, connInfo.Protocol)
+	}
+
 	instServer = instServer.UseProject(project)
 	instServer = instServer.UseTarget(target)
 
@@ -123,12 +127,16 @@ func (p *IncusProviderConfig) ImageServer(remoteName string) (incus.ImageServer,
 		return nil, err
 	}
 
-	if connInfo.Protocol == "simplestreams" || connInfo.Protocol == "incus" || connInfo.Protocol == "oci" {
-		return server.(incus.ImageServer), nil
+	if connInfo.Protocol != "simplestreams" && connInfo.Protocol != "incus" && connInfo.Protocol != "oci" {
+		return nil, fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
 	}
 
-	err = fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
-	return nil, err
+	imageServer, ok := server.(incus.ImageServer)
+	if !ok {
+		return nil, fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
+	}
+
+	return imageServer, nil
 }
 
 // getServer returns a server for the named remote. The returned server
