@@ -44,6 +44,7 @@ linters:
         - name: redefines-builtin-id
         - name: redundant-import-alias
         - name: struct-tag
+        - name: unchecked-type-assertion
         - name: use-any
         - name: useless-break
         - name: var-declaration
