@@ -230,7 +230,7 @@ func (r StorageBucketKeyResource) Update(ctx context.Context, req resource.Updat
 	poolName := plan.Pool.ValueString()
 	bucketName := plan.StorageBucket.ValueString()
 
-	// Ensure strorage bucket exists.
+	// Ensure storage bucket exists.
 	_, _, err = server.GetStoragePoolBucket(poolName, bucketName)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve storage bucket %q", bucketName), err.Error())
