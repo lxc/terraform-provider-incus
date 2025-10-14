@@ -12,6 +12,7 @@ linters:
     - staticcheck
     - testifylint
     - thelper
+    - unconvert
     - unused
     - whitespace
   exclusions:
