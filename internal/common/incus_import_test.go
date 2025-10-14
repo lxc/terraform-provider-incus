@@ -17,7 +17,7 @@ type importMetadataTest struct {
 	ErrorString  string
 }
 
-func runTest(t *testing.T, test importMetadataTest) {
+func runTest(t *testing.T, test importMetadataTest) { //nolint:thelper
 	t.Run(fmt.Sprintf("ImportID:%q", test.ImportID), func(t *testing.T) {
 		meta := ImportMetadata{
 			ResourceName:   test.ResourceName,
