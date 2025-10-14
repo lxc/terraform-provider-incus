@@ -50,6 +50,11 @@ linters:
         - name: use-any
         - name: useless-break
         - name: var-declaration
+        - name: var-naming
+          arguments:
+            - []
+            - []
+            - - skip-package-name-checks: true
   exclusions:
     generated: lax
     presets:
@@ -65,6 +70,9 @@ linters:
       - linters:
           - staticcheck
         text: "ST1005:"
+      - linters:
+          - revive
+        text: "testAcc"
 formatters:
   enable:
     - gci
