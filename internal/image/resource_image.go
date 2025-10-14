@@ -858,7 +858,12 @@ func (r ImageResource) createImageFromSourceInstance(ctx context.Context, resp *
 
 	// Extract fingerprint from operation response.
 	opResp := op.Get()
-	imageFingerprint := opResp.Metadata["fingerprint"].(string)
+	imageFingerprint, ok := opResp.Metadata["fingerprint"].(string)
+	if !ok {
+		resp.Diagnostics.AddError(fmt.Sprintf(`Fingerprint "%v" is not a string`, opResp.Metadata["fingerprint"]), fmt.Sprintf(`Fingerprint "%[1]v" is not a string but %[1]T`, opResp.Metadata["fingerprint"]))
+		return
+	}
+
 	plan.Fingerprint = types.StringValue(imageFingerprint)
 
 	imageID := createImageResourceID(remote, imageFingerprint)
