@@ -313,7 +313,7 @@ func (r ProjectResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ ProjectModel) ComputedKeys() []string {
+func (ProjectModel) ComputedKeys() []string {
 	return []string{
 		"features.images",
 		"features.profiles",
