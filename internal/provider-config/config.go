@@ -20,9 +20,6 @@ import (
 // supportedIncusVersions defines Incus versions that are supported by the provider.
 const supportedIncusVersions = ">= 0.1"
 
-// A global mutex.
-var mutex sync.RWMutex
-
 // IncusProviderRemoteConfig represents Incus remote/server data as defined
 // in a user's Terraform schema/configuration.
 type IncusProviderRemoteConfig struct {
@@ -296,7 +293,7 @@ func (p *IncusProviderConfig) fetchIncusServerCertificate(remoteName string) err
 	}
 
 	certDir := p.incusConfig.ConfigPath("servercerts")
-	err = os.MkdirAll(certDir, 0750)
+	err = os.MkdirAll(certDir, 0o750)
 	if err != nil {
 		return err
 	}
