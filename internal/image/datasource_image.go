@@ -204,7 +204,7 @@ func (d *ImageDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve image by fingerprint %q", fingerprint), err.Error())
 	}
 
-	var aliases []string
+	aliases := make([]string, 0, len(image.Aliases))
 	for _, a := range image.Aliases {
 		aliases = append(aliases, a.Name)
 	}
