@@ -36,6 +36,8 @@ linters:
           arguments:
             - "check-private-receivers"
             - "disable-stuttering-check"
+        - name: import-shadowing
+          disabled: true # As of now, this triggers on too many cases.
         - name: indent-error-flow
         - name: modifies-value-receiver
         - name: range-val-address
