@@ -244,15 +244,15 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 			if err != nil {
 				// Either PKI isn't being used or certificates haven't been
 				// exchanged. Try to add the remote server certificate.
-				if p.acceptServerCertificate {
-					err := p.fetchIncusServerCertificate(remote.Name)
-					if err != nil {
-						return fmt.Errorf("Failed to get remote server certificate: %v", err)
-					}
-				} else {
+				if !p.acceptServerCertificate {
 					return fmt.Errorf("Unable to communicate with remote server. Either set " +
 						"accept_remote_certificate to true or add the remote out of band " +
 						"of Terraform and try again.")
+				}
+
+				err := p.fetchIncusServerCertificate(remote.Name)
+				if err != nil {
+					return fmt.Errorf("Failed to get remote server certificate: %v", err)
 				}
 			}
 		}
