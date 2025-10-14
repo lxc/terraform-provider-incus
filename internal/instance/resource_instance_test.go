@@ -62,7 +62,7 @@ func TestAccInstance_noImageWithArchitecture(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.PreCheck(t)
-			acctest.PreCheck_x86_64(t)
+			acctest.PreCheckX86_64(t)
 		},
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{

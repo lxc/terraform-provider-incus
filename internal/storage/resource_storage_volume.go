@@ -240,13 +240,14 @@ func (r StorageVolumeResource) Create(ctx context.Context, req resource.CreateRe
 	if !plan.SourceVolume.IsNull() {
 		r.copyStoragePoolVolume(ctx, resp, &plan)
 		return
-	} else if !plan.SourceFile.IsNull() {
+	}
+
+	if !plan.SourceFile.IsNull() {
 		r.importStoragePoolVolume(ctx, resp, &plan)
 		return
-	} else {
-		r.createStoragePoolVolume(ctx, resp, &plan)
-		return
 	}
+
+	r.createStoragePoolVolume(ctx, resp, &plan)
 }
 
 func (r StorageVolumeResource) createStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel) {
@@ -574,7 +575,7 @@ func (r StorageVolumeResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ StorageVolumeModel) ComputedKeys() []string {
+func (StorageVolumeModel) ComputedKeys() []string {
 	return []string{
 		"block.filesystem",
 		"block.mount_options",
@@ -582,7 +583,7 @@ func (_ StorageVolumeModel) ComputedKeys() []string {
 	}
 }
 
-func (_ StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceServer, poolName string) ([]string, error) {
+func (StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceServer, poolName string) ([]string, error) {
 	volumePrefix := "volume."
 	inheritedKeys := make([]string, 0)
 

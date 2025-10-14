@@ -20,9 +20,6 @@ import (
 // supportedIncusVersions defines Incus versions that are supported by the provider.
 const supportedIncusVersions = ">= 0.1"
 
-// A global mutex.
-var mutex sync.RWMutex
-
 // IncusProviderRemoteConfig represents Incus remote/server data as defined
 // in a user's Terraform schema/configuration.
 type IncusProviderRemoteConfig struct {
@@ -103,7 +100,11 @@ func (p *IncusProviderConfig) InstanceServer(remoteName string, project string, 
 		return nil, fmt.Errorf("Remote %q (%s) is not an InstanceServer", remoteName, connInfo.Protocol)
 	}
 
-	instServer := server.(incus.InstanceServer)
+	instServer, ok := server.(incus.InstanceServer)
+	if !ok {
+		return nil, fmt.Errorf("Remote %q (%s) is not an InstanceServer", remoteName, connInfo.Protocol)
+	}
+
 	instServer = instServer.UseProject(project)
 	instServer = instServer.UseTarget(target)
 
@@ -126,12 +127,16 @@ func (p *IncusProviderConfig) ImageServer(remoteName string) (incus.ImageServer,
 		return nil, err
 	}
 
-	if connInfo.Protocol == "simplestreams" || connInfo.Protocol == "incus" || connInfo.Protocol == "oci" {
-		return server.(incus.ImageServer), nil
+	if connInfo.Protocol != "simplestreams" && connInfo.Protocol != "incus" && connInfo.Protocol != "oci" {
+		return nil, fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
 	}
 
-	err = fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
-	return nil, err
+	imageServer, ok := server.(incus.ImageServer)
+	if !ok {
+		return nil, fmt.Errorf("Remote %q (%s / %s) is not an ImageServer", remoteName, connInfo.Protocol, connInfo.Addresses[0])
+	}
+
+	return imageServer, nil
 }
 
 // getServer returns a server for the named remote. The returned server
@@ -247,15 +252,15 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 			if err != nil {
 				// Either PKI isn't being used or certificates haven't been
 				// exchanged. Try to add the remote server certificate.
-				if p.acceptServerCertificate {
-					err := p.fetchIncusServerCertificate(remote.Name)
-					if err != nil {
-						return fmt.Errorf("Failed to get remote server certificate: %v", err)
-					}
-				} else {
+				if !p.acceptServerCertificate {
 					return fmt.Errorf("Unable to communicate with remote server. Either set " +
 						"accept_remote_certificate to true or add the remote out of band " +
 						"of Terraform and try again.")
+				}
+
+				err := p.fetchIncusServerCertificate(remote.Name)
+				if err != nil {
+					return fmt.Errorf("Failed to get remote server certificate: %v", err)
 				}
 			}
 		}
@@ -296,7 +301,7 @@ func (p *IncusProviderConfig) fetchIncusServerCertificate(remoteName string) err
 	}
 
 	certDir := p.incusConfig.ConfigPath("servercerts")
-	err = os.MkdirAll(certDir, 0750)
+	err = os.MkdirAll(certDir, 0o750)
 	if err != nil {
 		return err
 	}

@@ -173,10 +173,9 @@ func (r StorageBucketResource) Create(ctx context.Context, req resource.CreateRe
 	if !plan.SourceFile.IsNull() {
 		r.importStoragePoolBucket(ctx, resp, &plan)
 		return
-	} else {
-		r.createStoragePoolBucket(ctx, resp, &plan)
-		return
 	}
+
+	r.createStoragePoolBucket(ctx, resp, &plan)
 }
 
 func (r StorageBucketResource) createStoragePoolBucket(ctx context.Context, resp *resource.CreateResponse, plan *StorageBucketModel) {
@@ -416,7 +415,7 @@ func (r StorageBucketResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ StorageBucketModel) ComputedKeys() []string {
+func (StorageBucketModel) ComputedKeys() []string {
 	return []string{
 		"block.filesystem",
 		"block.mount_options",

@@ -1381,70 +1381,70 @@ func (r InstanceResource) createInstanceFromSourceInstance(ctx context.Context, 
 		}
 
 		return diags
-	} else {
-		args := incus.InstanceSnapshotCopyArgs{
-			Name: name,
-			Live: true,
-		}
+	}
 
-		sourceSnapshotName := sourceInstanceModel.Snapshot.ValueString()
-		sourceSnapshot, _, err := sourceServer.GetInstanceSnapshot(sourceInstanceName, sourceSnapshotName)
-		if err != nil {
-			diags.AddError(fmt.Sprintf("Failed to retrieve snapshot %q from instance %q", sourceSnapshotName, sourceInstanceName), err.Error())
-			return diags
-		}
+	args := incus.InstanceSnapshotCopyArgs{
+		Name: name,
+		Live: true,
+	}
 
-		// Extract profiles, devices and config.
-		profiles, diags := ToProfileList(ctx, plan.Profiles)
-		diags.Append(diags...)
-
-		devices, diags := common.ToDeviceMap(ctx, plan.Devices)
-		diags.Append(diags...)
-
-		config, diags := common.ToConfigMap(ctx, plan.Config)
-		diags.Append(diags...)
-
-		if diags.HasError() {
-			return diags
-		}
-
-		sourceSnapshot.Profiles = profiles
-
-		// Allow setting additional config keys
-		for key, value := range config {
-			sourceSnapshot.Config[key] = value
-		}
-
-		// Allow setting device overrides
-		for k, m := range devices {
-			if sourceSnapshot.Devices[k] == nil {
-				sourceSnapshot.Devices[k] = m
-				continue
-			}
-
-			for key, value := range m {
-				sourceSnapshot.Devices[k][key] = value
-			}
-		}
-
-		for k := range sourceSnapshot.Config {
-			if !instanceIncludeWhenCopying(k, true) {
-				delete(sourceSnapshot.Config, k)
-			}
-		}
-
-		opCreate, err := destServer.CopyInstanceSnapshot(sourceServer, sourceInstanceName, *sourceSnapshot, &args)
-		if err == nil {
-			err = opCreate.Wait()
-		}
-
-		if err != nil {
-			diags.AddError(fmt.Sprintf("Failed to create instance %q from snapshot %q", name, sourceSnapshotName), err.Error())
-			return diags
-		}
-
+	sourceSnapshotName := sourceInstanceModel.Snapshot.ValueString()
+	sourceSnapshot, _, err := sourceServer.GetInstanceSnapshot(sourceInstanceName, sourceSnapshotName)
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Failed to retrieve snapshot %q from instance %q", sourceSnapshotName, sourceInstanceName), err.Error())
 		return diags
 	}
+
+	// Extract profiles, devices and config.
+	profiles, diags := ToProfileList(ctx, plan.Profiles)
+	diags.Append(diags...)
+
+	devices, diags := common.ToDeviceMap(ctx, plan.Devices)
+	diags.Append(diags...)
+
+	config, diags := common.ToConfigMap(ctx, plan.Config)
+	diags.Append(diags...)
+
+	if diags.HasError() {
+		return diags
+	}
+
+	sourceSnapshot.Profiles = profiles
+
+	// Allow setting additional config keys
+	for key, value := range config {
+		sourceSnapshot.Config[key] = value
+	}
+
+	// Allow setting device overrides
+	for k, m := range devices {
+		if sourceSnapshot.Devices[k] == nil {
+			sourceSnapshot.Devices[k] = m
+			continue
+		}
+
+		for key, value := range m {
+			sourceSnapshot.Devices[k][key] = value
+		}
+	}
+
+	for k := range sourceSnapshot.Config {
+		if !instanceIncludeWhenCopying(k, true) {
+			delete(sourceSnapshot.Config, k)
+		}
+	}
+
+	opCreate, err := destServer.CopyInstanceSnapshot(sourceServer, sourceInstanceName, *sourceSnapshot, &args)
+	if err == nil {
+		err = opCreate.Wait()
+	}
+
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Failed to create instance %q from snapshot %q", name, sourceSnapshotName), err.Error())
+		return diags
+	}
+
+	return diags
 }
 
 func instanceIncludeWhenCopying(configKey string, remoteCopy bool) bool {
@@ -1531,7 +1531,7 @@ func prepareInstancesPost(ctx context.Context, plan InstanceModel) (api.Instance
 }
 
 // ComputedKeys returns list of computed config keys.
-func (_ InstanceModel) ComputedKeys() []string {
+func (InstanceModel) ComputedKeys() []string {
 	return []string{
 		"environment.",
 		"image.",

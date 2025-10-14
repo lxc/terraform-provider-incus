@@ -26,8 +26,8 @@ import (
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
 
-// NetworkAclModel resource data model that matches the schema.
-type NetworkAclModel struct {
+// NetworkACLModel resource data model that matches the schema.
+type NetworkACLModel struct {
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	Project     types.String `tfsdk:"project"`
@@ -37,8 +37,8 @@ type NetworkAclModel struct {
 	Ingress     types.Set    `tfsdk:"ingress"`
 }
 
-// NetworkAclRuleModel resource data model that matches the schema.
-type NetworkAclRuleModel struct {
+// NetworkACLRuleModel resource data model that matches the schema.
+type NetworkACLRuleModel struct {
 	Action          types.String `tfsdk:"action"`
 	Destination     types.String `tfsdk:"destination"`
 	DestinationPort types.String `tfsdk:"destination_port"`
@@ -50,20 +50,21 @@ type NetworkAclRuleModel struct {
 	ICMPCode        types.String `tfsdk:"icmp_code"`
 }
 
-// NetworkAclResource represent Incus network ACL resource.
-type NetworkAclResource struct {
+// NetworkACLResource represent Incus network ACL resource.
+type NetworkACLResource struct {
 	provider *provider_config.IncusProviderConfig
 }
 
-func NewNetworkAclResource() resource.Resource {
-	return &NetworkAclResource{}
+func NewNetworkACLResource() resource.Resource {
+	return &NetworkACLResource{}
 }
 
-func (r *NetworkAclResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *NetworkACLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = fmt.Sprintf("%s_network_acl", req.ProviderTypeName)
 }
-func (r *NetworkAclResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	aclRuleObjectType := getAclRuleObjectType()
+
+func (r *NetworkACLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	aclRuleObjectType := getACLRuleObjectType()
 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
@@ -119,7 +120,7 @@ func (r *NetworkAclResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}
 }
 
-func getAclRuleObjectType() types.ObjectType {
+func getACLRuleObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"action":           types.StringType,
@@ -180,7 +181,7 @@ func ruleAttributes() map[string]schema.Attribute {
 	}
 }
 
-func (r *NetworkAclResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *NetworkACLResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	data := req.ProviderData
 	if data == nil {
 		return
@@ -195,8 +196,8 @@ func (r *NetworkAclResource) Configure(_ context.Context, req resource.Configure
 	r.provider = provider
 }
 
-func (r *NetworkAclResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan NetworkAclModel
+func (r *NetworkACLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan NetworkACLModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -215,10 +216,10 @@ func (r *NetworkAclResource) Create(ctx context.Context, req resource.CreateRequ
 	config, diags := common.ToConfigMap(ctx, plan.Config)
 	resp.Diagnostics.Append(diags...)
 
-	egress, diags := ToNetworkAclRules(ctx, plan.Egress)
+	egress, diags := toNetworkACLRules(ctx, plan.Egress)
 	resp.Diagnostics.Append(diags...)
 
-	ingress, diags := ToNetworkAclRules(ctx, plan.Ingress)
+	ingress, diags := toNetworkACLRules(ctx, plan.Ingress)
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
@@ -248,12 +249,12 @@ func (r *NetworkAclResource) Create(ctx context.Context, req resource.CreateRequ
 	resp.Diagnostics.Append(diags...)
 }
 
-func ToNetworkAclRules(ctx context.Context, aclRuleList types.Set) ([]api.NetworkACLRule, diag.Diagnostics) {
+func toNetworkACLRules(ctx context.Context, aclRuleList types.Set) ([]api.NetworkACLRule, diag.Diagnostics) {
 	if aclRuleList.IsNull() {
 		return []api.NetworkACLRule{}, nil
 	}
 
-	aclRuleModelList := make([]NetworkAclRuleModel, 0, len(aclRuleList.Elements()))
+	aclRuleModelList := make([]NetworkACLRuleModel, 0, len(aclRuleList.Elements()))
 	diags := aclRuleList.ElementsAs(ctx, &aclRuleModelList, false)
 	if diags.HasError() {
 		return nil, diags
@@ -284,8 +285,8 @@ func ToNetworkAclRules(ctx context.Context, aclRuleList types.Set) ([]api.Networ
 	return aclRules, nil
 }
 
-func (r *NetworkAclResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state NetworkAclModel
+func (r *NetworkACLResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state NetworkACLModel
 
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -305,8 +306,8 @@ func (r *NetworkAclResource) Read(ctx context.Context, req resource.ReadRequest,
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *NetworkAclResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan NetworkAclModel
+func (r *NetworkACLResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan NetworkACLModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -332,10 +333,10 @@ func (r *NetworkAclResource) Update(ctx context.Context, req resource.UpdateRequ
 	config, diags := common.ToConfigMap(ctx, plan.Config)
 	resp.Diagnostics.Append(diags...)
 
-	egress, diags := ToNetworkAclRules(ctx, plan.Egress)
+	egress, diags := toNetworkACLRules(ctx, plan.Egress)
 	resp.Diagnostics.Append(diags...)
 
-	ingress, diags := ToNetworkAclRules(ctx, plan.Ingress)
+	ingress, diags := toNetworkACLRules(ctx, plan.Ingress)
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
@@ -359,8 +360,8 @@ func (r *NetworkAclResource) Update(ctx context.Context, req resource.UpdateRequ
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *NetworkAclResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state NetworkAclModel
+func (r *NetworkACLResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state NetworkACLModel
 
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -383,7 +384,7 @@ func (r *NetworkAclResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 }
 
-func (r *NetworkAclResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *NetworkACLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	meta := common.ImportMetadata{
 		ResourceName:   "network_acl",
 		RequiredFields: []string{"name"},
@@ -400,7 +401,7 @@ func (r *NetworkAclResource) ImportState(ctx context.Context, req resource.Impor
 	}
 }
 
-func (r *NetworkAclResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m NetworkAclModel) diag.Diagnostics {
+func (r *NetworkACLResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m NetworkACLModel) diag.Diagnostics {
 	aclName := m.Name.ValueString()
 	acl, _, err := server.GetNetworkACL(aclName)
 	if err != nil {
@@ -419,12 +420,12 @@ func (r *NetworkAclResource) SyncState(ctx context.Context, tfState *tfsdk.State
 		return diags
 	}
 
-	egress, diags := ToNetworkAclRulesListType(acl.Egress)
+	egress, diags := toNetworkACLRulesListType(acl.Egress)
 	if diags.HasError() {
 		return diags
 	}
 
-	ingress, diags := ToNetworkAclRulesListType(acl.Ingress)
+	ingress, diags := toNetworkACLRulesListType(acl.Ingress)
 	if diags.HasError() {
 		return diags
 	}
@@ -438,15 +439,15 @@ func (r *NetworkAclResource) SyncState(ctx context.Context, tfState *tfsdk.State
 	return tfState.Set(ctx, &m)
 }
 
-func ToNetworkAclRulesListType(networkACLRules []api.NetworkACLRule) (types.Set, diag.Diagnostics) {
-	aclRuleObjectType := getAclRuleObjectType()
+func toNetworkACLRulesListType(networkACLRules []api.NetworkACLRule) (types.Set, diag.Diagnostics) {
+	aclRuleObjectType := getACLRuleObjectType()
 	nilSet := types.SetNull(aclRuleObjectType)
 
 	if len(networkACLRules) == 0 {
 		return nilSet, nil
 	}
 
-	var aclRuleList []attr.Value
+	aclRuleList := make([]attr.Value, 0, len(networkACLRules))
 	for _, rule := range networkACLRules {
 		// Create the attribute map for each rule
 		aclRuleMap := map[string]attr.Value{

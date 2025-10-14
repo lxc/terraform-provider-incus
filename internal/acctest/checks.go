@@ -15,6 +15,7 @@ import (
 // PreCheck is a precheck that ensures test requirements, such as existing
 // environment variables, are met. It should be included in every acc test.
 func PreCheck(t *testing.T) {
+	t.Helper()
 	// if os.Getenv("TEST_INCUS_REQUIRED_VAR") == "" {
 	// 	t.Fatal("TEST_INCUS_REQUIRED_VAR must be set for acceptance tests")
 	// }
@@ -24,6 +25,8 @@ func PreCheck(t *testing.T) {
 // the provided version constraints. The version constraints are detailed at:
 // https://pkg.go.dev/github.com/hashicorp/go-version#readme-version-constraints
 func PreCheckIncusVersion(t *testing.T, versionConstraint string) {
+	t.Helper()
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
@@ -49,6 +52,8 @@ func PreCheckIncusVersion(t *testing.T, versionConstraint string) {
 // PreCheckAPIExtensions skips the test if the Incus server does not support
 // the required extensions.
 func PreCheckAPIExtensions(t *testing.T, extensions ...string) {
+	t.Helper()
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
@@ -70,6 +75,8 @@ func PreCheckAPIExtensions(t *testing.T, extensions ...string) {
 // PreCheckVirtualization skips the test if the Incus server does not
 // support virtualization.
 func PreCheckVirtualization(t *testing.T) {
+	t.Helper()
+
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skipf("Test %q skipped. Virtualization tests can't run in Github Actions.", t.Name())
 	}
@@ -94,6 +101,8 @@ func PreCheckVirtualization(t *testing.T) {
 // PreCheckClustering skips the test if Incus server is not running
 // in clustered mode.
 func PreCheckClustering(t *testing.T) {
+	t.Helper()
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
@@ -108,6 +117,8 @@ func PreCheckClustering(t *testing.T) {
 // PreCheckStandalone skips the test if Incus server is running
 // in clustered mode.
 func PreCheckStandalone(t *testing.T) {
+	t.Helper()
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
@@ -119,7 +130,9 @@ func PreCheckStandalone(t *testing.T) {
 	}
 }
 
-func PreCheck_x86_64(t *testing.T) {
+func PreCheckX86_64(t *testing.T) {
+	t.Helper()
+
 	p := testProvider()
 	server, err := p.InstanceServer("", "", "")
 	if err != nil {
@@ -148,6 +161,8 @@ func PreCheck_x86_64(t *testing.T) {
 //
 //	incus_profile.profile2
 func PrintResourceState(t *testing.T, resName string) resource.TestCheckFunc {
+	t.Helper()
+
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[resName]
 		if !ok {
