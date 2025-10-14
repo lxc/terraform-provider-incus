@@ -4,11 +4,11 @@ linters:
     - godot
     - misspell
     - staticcheck
+    - unused
     - whitespace
   disable:
     - errcheck
     - ineffassign
-    - unused
   exclusions:
     generated: lax
     presets:
