@@ -342,7 +342,7 @@ func (r ImageResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	// Extract image metadata.
-	_, imageFingerprint := splitImageResourceID(plan.ResourceID.ValueString())
+	imageFingerprint := fingerprintFromResourceID(plan.ResourceID.ValueString())
 
 	// Extract old and new nested alias blocks
 	var oldImageAliasSet types.Set
@@ -412,7 +412,7 @@ func (r ImageResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	_, imageFingerprint := splitImageResourceID(state.ResourceID.ValueString())
+	imageFingerprint := fingerprintFromResourceID(state.ResourceID.ValueString())
 
 	opDelete, err := server.DeleteImage(imageFingerprint)
 	if err != nil {
@@ -433,7 +433,7 @@ func (r ImageResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, m ImageModel) diag.Diagnostics {
 	var respDiags diag.Diagnostics
 
-	_, imageFingerprint := splitImageResourceID(m.ResourceID.ValueString())
+	imageFingerprint := fingerprintFromResourceID(m.ResourceID.ValueString())
 
 	image, _, err := server.GetImage(imageFingerprint)
 	if err != nil {
@@ -991,10 +991,10 @@ func createImageResourceID(remote string, fingerprint string) string {
 	return fmt.Sprintf("%s:%s", remote, fingerprint)
 }
 
-// splitImageResourceID splits an image ID into remote and fingerprint strings.
-func splitImageResourceID(id string) (string, string) {
+// fingerprintFromResourceID returns the fingerprint part from an image ID.
+func fingerprintFromResourceID(id string) string {
 	pieces := strings.SplitN(id, ":", 2)
-	return pieces[0], pieces[1]
+	return pieces[1]
 }
 
 func exactlyOne(in ...bool) bool {
