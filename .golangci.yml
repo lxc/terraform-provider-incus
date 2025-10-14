@@ -13,6 +13,7 @@ linters:
     - testifylint
     - thelper
     - unconvert
+    - unparam
     - unused
     - whitespace
   exclusions:
