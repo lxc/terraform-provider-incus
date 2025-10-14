@@ -130,7 +130,7 @@ func PreCheckStandalone(t *testing.T) {
 	}
 }
 
-func PreCheck_x86_64(t *testing.T) {
+func PreCheckX86_64(t *testing.T) {
 	t.Helper()
 
 	p := testProvider()
