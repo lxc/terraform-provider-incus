@@ -2,13 +2,13 @@ version: "2"
 linters:
   enable:
     - godot
+    - ineffassign
     - misspell
     - staticcheck
     - unused
     - whitespace
   disable:
     - errcheck
-    - ineffassign
   exclusions:
     generated: lax
     presets:
