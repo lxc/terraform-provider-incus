@@ -3,11 +3,11 @@ linters:
   enable:
     - godot
     - misspell
+    - staticcheck
     - whitespace
   disable:
     - errcheck
     - ineffassign
-    - staticcheck
     - unused
   exclusions:
     generated: lax
@@ -20,6 +20,10 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      - linters:
+          - staticcheck
+        text: "ST1005:"
 formatters:
   enable:
     - gci
