@@ -70,6 +70,16 @@ func capitalizedWords(s string) []string {
 			continue
 		}
 
+		// Plural?
+		if strings.HasSuffix(words[i], "s") {
+			w := strings.TrimSuffix(words[i], "s")
+			_, ok := acronyms[strings.ToLower(w)]
+			if ok {
+				words[i] = strings.ToUpper(w) + "s"
+				continue
+			}
+		}
+
 		words[i] = Capital(words[i])
 	}
 
