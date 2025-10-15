@@ -52,6 +52,29 @@ provider_installation {
 }
 ```
 
+#### Formatting
+
+This project uses [`gofumpt`](https://github.com/mvdan/gofumpt) to format the
+code, which is a stricter version of `gofmt`.
+
+For your best experience, make sure your editor is configured to run
+`gofumpt` on save. Find the installation section in
+[`gofumpt`'s README.md](https://github.com/mvdan/gofumpt?tab=readme-ov-file#installation).
+
+#### Static Code Analysis
+
+This project uses [`golangci-lint`](https://golangci-lint.run/) and `terraform fmt`
+to perform linting and static code analysis.
+
+To run the linters locally, use:
+
+```shell
+make static-analysis
+```
+
+If your editor is configured to run `golangci-lint` on save, it is expected to
+automatically pick up the configuration from `.golangci.yml`.
+
 #### Generated code
 
 Most of the data sources are generated using the tool located in

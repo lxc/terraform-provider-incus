@@ -7,7 +7,7 @@ default: build
 
 test:
 	$(GO) get -t ./...
-	$(GO) test -parallel $$(nproc) -race -timeout 60m -v ./internal/...
+	$(GO) test -parallel $$(nproc) -race -timeout 60m -v ./...
 
 testacc:
 	TF_LOG=$(TF_LOG) TF_ACC=1 $(GO) test -parallel 4 -v -race $(TESTARGS) -timeout 60m ./internal/...
@@ -71,7 +71,7 @@ static-analysis:
 .PHONY: update-gomod
 update-gomod:
 	$(GO) get -t -v -u ./...
-	$(GO) mod tidy --go=1.23.7
+	$(GO) mod tidy --go=1.24.7
 	$(GO) get toolchain@none
 	@echo "Dependencies updated"
 

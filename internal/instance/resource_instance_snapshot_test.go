@@ -168,6 +168,7 @@ resource "incus_instance_snapshot" "snapshot2" {
 }
 	`, cName, acctest.TestImage, sName1, sName2)
 }
+
 func testAccInstanceSnapshot_project(project, instance, snapshot string) string {
 	return fmt.Sprintf(`
 resource "incus_project" "project1" {

@@ -6,8 +6,8 @@ Manage integrations between the local Incus deployment and remote networks hoste
 
 ```hcl
 resource "incus_network_integration" "this" {
-    name   = "ovn-region"
-    type   = "ovn"
+    name = "ovn-region"
+    type = "ovn"
 
     config = {
         "ovn.northbound_connection" = "tcp:[192.0.2.12]:6645,tcp:[192.0.3.13]:6645,tcp:[192.0.3.14]:6645"
@@ -30,8 +30,8 @@ resource "incus_network" "default" {
 }
 
 resource "incus_network_integration" "this" {
-    name   = "ovn-region"
-    type   = "ovn"
+    name = "ovn-region"
+    type = "ovn"
 
     config = {
         "ovn.northbound_connection" = "tcp:[192.0.2.12]:6645,tcp:[192.0.3.13]:6645,tcp:[192.0.3.14]:6645"
