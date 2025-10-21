@@ -18,6 +18,8 @@ resource "incus_cluster_group" "amd64" {
 * `config` - *Optional* - Map of key/value pairs of
   [cluster group config settings](https://linuxcontainers.org/incus/docs/main/howto/cluster_groups/#configuration-options).
 
+* `description` - *Optional* - Description of the cluster group.
+
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
 
