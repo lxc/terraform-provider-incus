@@ -22,9 +22,8 @@ import (
 type StoragePoolDataSourceModel struct {
 	Name types.String `tfsdk:"name"`
 
-	Project types.String `tfsdk:"project"`
-	Target  types.String `tfsdk:"target"`
-	Remote  types.String `tfsdk:"remote"`
+	Target types.String `tfsdk:"target"`
+	Remote types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
 	Config      types.Map    `tfsdk:"config"`
@@ -51,13 +50,6 @@ func (d *StoragePoolDataSource) Schema(ctx context.Context, req datasource.Schem
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required: true,
-			},
-
-			"project": schema.StringAttribute{
-				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
 			},
 
 			"remote": schema.StringAttribute{
@@ -121,7 +113,7 @@ func (d *StoragePoolDataSource) Read(ctx context.Context, req datasource.ReadReq
 	}
 
 	providerRemote := state.Remote.ValueString()
-	providerProjectName := state.Project.ValueString()
+	providerProjectName := ""
 	providerTarget := state.Target.ValueString()
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
