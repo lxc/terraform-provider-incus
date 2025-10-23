@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,7 +22,6 @@ type NetworkAddressSetDataSourceModel struct {
 	Name types.String `tfsdk:"name"`
 
 	Project types.String `tfsdk:"project"`
-	Target  types.String `tfsdk:"target"`
 	Remote  types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
@@ -61,13 +59,6 @@ func (d *NetworkAddressSetDataSource) Schema(ctx context.Context, req datasource
 
 			"remote": schema.StringAttribute{
 				Optional: true,
-			},
-
-			"target": schema.StringAttribute{
-				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
 			},
 
 			"description": schema.StringAttribute{
@@ -117,7 +108,7 @@ func (d *NetworkAddressSetDataSource) Read(ctx context.Context, req datasource.R
 
 	providerRemote := state.Remote.ValueString()
 	providerProjectName := state.Project.ValueString()
-	providerTarget := state.Target.ValueString()
+	providerTarget := ""
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
 		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
