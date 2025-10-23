@@ -6,12 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/lxc/terraform-provider-incus/internal/common"
@@ -22,7 +19,6 @@ import (
 type ProjectDataSourceModel struct {
 	Name types.String `tfsdk:"name"`
 
-	Target types.String `tfsdk:"target"`
 	Remote types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
@@ -50,13 +46,6 @@ func (d *ProjectDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 
 			"remote": schema.StringAttribute{
 				Optional: true,
-			},
-
-			"target": schema.StringAttribute{
-				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
 			},
 
 			"description": schema.StringAttribute{
@@ -99,7 +88,7 @@ func (d *ProjectDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	providerRemote := state.Remote.ValueString()
 	providerProjectName := ""
-	providerTarget := state.Target.ValueString()
+	providerTarget := ""
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
 		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
