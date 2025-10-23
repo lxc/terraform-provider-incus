@@ -49,6 +49,11 @@ type Entity struct {
 	// `has-no-project` needs to be set to `true`.
 	HasNoProject bool `yaml:"has-no-project"`
 
+	// If a resource has a target.
+	// Most resources do not have a target attribute. If a resource does have a
+	// target, `has-target` needs to be set to `true`.
+	HasTarget bool `yaml:"has-target"`
+
 	// If a resource has no status attribute.
 	// Most resources do have a status attribute. If this is not the case,
 	// `has-no-status` needs to be set to `true`.
