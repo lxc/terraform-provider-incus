@@ -59,10 +59,12 @@ output "{{ .Name }}_{{ .ObjectNamePropertyName }}" {
 {{- with $.ExtraDescriptions.remote }}
 {{ . | indent 2 }}
 {{- end }}
+{{- if .HasTarget }}
 
 * `target` - *Optional* - Specify a target node in a cluster.
 {{- with $.ExtraDescriptions.target }}
 {{ . | indent 2 }}
+{{- end }}
 {{- end }}
 
 ## Attribute Reference

@@ -24,7 +24,6 @@ type NetworkLoadBalancerDataSourceModel struct {
 	ListenAddress types.String `tfsdk:"listen_address"`
 	Network       types.String `tfsdk:"network"`
 	Project       types.String `tfsdk:"project"`
-	Target        types.String `tfsdk:"target"`
 	Remote        types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
@@ -68,13 +67,6 @@ func (d *NetworkLoadBalancerDataSource) Schema(ctx context.Context, req datasour
 
 			"remote": schema.StringAttribute{
 				Optional: true,
-			},
-
-			"target": schema.StringAttribute{
-				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
 			},
 
 			"description": schema.StringAttribute{
@@ -151,7 +143,7 @@ func (d *NetworkLoadBalancerDataSource) Read(ctx context.Context, req datasource
 
 	providerRemote := state.Remote.ValueString()
 	providerProjectName := state.Project.ValueString()
-	providerTarget := state.Target.ValueString()
+	providerTarget := ""
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
 		resp.Diagnostics.Append(errors.NewInstanceServerError(err))

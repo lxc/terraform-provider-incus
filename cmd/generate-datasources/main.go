@@ -113,6 +113,9 @@ type entityArgs struct {
 	// Inverted value from `has-no-project`.
 	HasProject bool
 
+	// Value from `has-target`.
+	HasTarget bool
+
 	// Inverted value from `has-no-status`.
 	HasStatus bool
 
@@ -189,6 +192,7 @@ func main() {
 			HasParent:                      entity.ParentName != "",
 			ParentName:                     entity.ParentName,
 			HasProject:                     !entity.HasNoProject,
+			HasTarget:                      entity.HasTarget,
 			HasStatus:                      !entity.HasNoStatus,
 			HasLocation:                    entity.HasLocation,
 			HasLocations:                   entity.HasLocations,

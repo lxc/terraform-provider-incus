@@ -19,12 +19,8 @@ output "network_integration_name" {
 
 * `name` - **Required** - Name of the network integration.
 
-* `project` - *Optional* - Name of the project where the network integration is be stored.
-
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
-
-* `target` - *Optional* - Specify a target node in a cluster.
 
 ## Attribute Reference
 

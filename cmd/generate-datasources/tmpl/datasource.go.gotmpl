@@ -89,14 +89,22 @@ import (
 	"context"
 	"fmt"
 
+	{{ if or .HasProject .HasTarget -}}
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	{{ if $requireAttr }}"github.com/hashicorp/terraform-plugin-framework/attr"{{ end }}
+	{{ end -}}
+	{{ if $requireAttr -}}
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	{{ end -}}
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	{{ if or .HasProject .HasTarget -}}
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	{{ end -}}
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	{{ if $requireBasetypes }}"github.com/hashicorp/terraform-plugin-framework/types/basetypes"{{ end }}
+	{{ if $requireBasetypes -}}
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	{{ end }}
 
 	"github.com/lxc/terraform-provider-incus/internal/common"
 	"github.com/lxc/terraform-provider-incus/internal/errors"
@@ -114,7 +122,9 @@ type {{ .Name | pascalcase }}DataSourceModel struct {
 	{{- if .HasProject }}
 		Project     types.String `tfsdk:"project"`
 	{{- end }}
+	{{- if .HasTarget }}
 	Target      types.String `tfsdk:"target"`
+	{{- end }}
 	Remote      types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
@@ -182,6 +192,7 @@ func (d *{{ .Name | pascalcase }}DataSource) Schema(ctx context.Context, req dat
 			"remote": schema.StringAttribute{
 				Optional: true,
 			},
+			{{- if .HasTarget }}
 
 			"target": schema.StringAttribute{
 				Optional: true,
@@ -189,6 +200,7 @@ func (d *{{ .Name | pascalcase }}DataSource) Schema(ctx context.Context, req dat
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
+			{{- end }}
 
 			"description": schema.StringAttribute{
 				Optional: true,
@@ -304,7 +316,11 @@ func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datas
 	{{- else }}
 		providerProjectName := ""
 	{{- end }}
+	{{- if .HasTarget }}
 	providerTarget := state.Target.ValueString()
+	{{- else }}
+	providerTarget := ""
+	{{- end }}
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
 		resp.Diagnostics.Append(errors.NewInstanceServerError(err))

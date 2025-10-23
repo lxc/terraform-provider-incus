@@ -27,8 +27,6 @@ output "network_load_balancer_listen_address" {
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
 
-* `target` - *Optional* - Specify a target node in a cluster.
-
 ## Attribute Reference
 
 * `description` - Description of the network load balancer.

@@ -19,8 +19,6 @@ output "storage_pool_name" {
 
 * `name` - **Required** - Name of the storage pool.
 
-* `project` - *Optional* - Name of the project where the storage pool is be stored.
-
 * `remote` - *Optional* - The remote in which the resource was created. If
   not provided, the provider's default remote will be used.
 

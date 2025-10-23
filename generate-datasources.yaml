@@ -42,6 +42,7 @@ network:
     See Incus network [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/networks/) for more details.
   package-name: network
   incus-get-method: GetNetwork
+  has-target: true
   has-locations: true
   extra-attributes:
     - name: type
@@ -157,6 +158,7 @@ network_forward:
   package-name: network
   parent: network
   incus-get-method: GetNetworkForward
+  has-target: true
   has-no-status: true
   has-location: true
   extra-attributes:
@@ -190,6 +192,7 @@ network_integration:
     See Incus network integration [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_integrations/) for more details.
   package-name: network
   incus-get-method: GetNetworkIntegration
+  has-no-project: true
   has-no-status: true
   extra-attributes:
     - name: type
@@ -302,6 +305,7 @@ storage_bucket:
   package-name: storage
   parent: storage_pool
   incus-get-method: GetStoragePoolBucket
+  has-target: true
   has-no-status: true
   has-location: true
   extra-attributes:
@@ -317,6 +321,8 @@ storage_pool:
     See Incus storage pool [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/) for more details.
   package-name: storage
   incus-get-method: GetStoragePool
+  has-no-project: true
+  has-target: true
   extra-attributes:
     - name: driver
       type: string
@@ -331,6 +337,7 @@ storage_volume:
   package-name: storage
   parent: storage_pool
   incus-get-method: GetStoragePoolVolume
+  has-target: true
   has-no-status: true
   has-location: true
   extra-id-attribute:
