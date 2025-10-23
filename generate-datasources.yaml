@@ -190,6 +190,7 @@ network_integration:
     See Incus network integration [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_integrations/) for more details.
   package-name: network
   incus-get-method: GetNetworkIntegration
+  has-no-project: true
   has-no-status: true
   extra-attributes:
     - name: type
@@ -317,6 +318,7 @@ storage_pool:
     See Incus storage pool [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/storage_pools/) for more details.
   package-name: storage
   incus-get-method: GetStoragePool
+  has-no-project: true
   extra-attributes:
     - name: driver
       type: string
