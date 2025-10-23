@@ -22,9 +22,8 @@ import (
 type NetworkIntegrationDataSourceModel struct {
 	Name types.String `tfsdk:"name"`
 
-	Project types.String `tfsdk:"project"`
-	Target  types.String `tfsdk:"target"`
-	Remote  types.String `tfsdk:"remote"`
+	Target types.String `tfsdk:"target"`
+	Remote types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
 	Config      types.Map    `tfsdk:"config"`
@@ -50,13 +49,6 @@ func (d *NetworkIntegrationDataSource) Schema(ctx context.Context, req datasourc
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required: true,
-			},
-
-			"project": schema.StringAttribute{
-				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
 			},
 
 			"remote": schema.StringAttribute{
@@ -115,7 +107,7 @@ func (d *NetworkIntegrationDataSource) Read(ctx context.Context, req datasource.
 	}
 
 	providerRemote := state.Remote.ValueString()
-	providerProjectName := state.Project.ValueString()
+	providerProjectName := ""
 	providerTarget := state.Target.ValueString()
 	server, err := d.provider.InstanceServer(providerRemote, providerProjectName, providerTarget)
 	if err != nil {
