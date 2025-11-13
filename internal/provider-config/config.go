@@ -498,7 +498,20 @@ func (p *IncusProviderConfig) setIncusConfigRemote(name string, remote incus_con
 func (p *IncusProviderConfig) getIncusConfigInstanceServer(remoteName string) (incus.InstanceServer, error) {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
-	return p.incusConfig.GetInstanceServer(remoteName)
+
+	server, err := p.incusConfig.GetInstanceServer(remoteName)
+	if err != nil {
+		return nil, err
+	}
+
+	// When using OIDC authentication, store the returned token locally
+	// so the user only completes the device authorization flow once.
+	incusRemote := p.incusConfig.Remotes[remoteName]
+	if incusRemote.AuthType == incus_api.AuthenticationMethodOIDC {
+		p.incusConfig.SaveOIDCTokens()
+	}
+
+	return server, nil
 }
 
 // getIncusConfigImageServer will retrieve an IncusImageServer client
