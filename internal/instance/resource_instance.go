@@ -660,8 +660,8 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 		diags = r.createInstanceFromSourceInstance(ctx, server, plan)
 		resp.Diagnostics.Append(diags...)
 	} else {
-		if plan.Running.ValueBool() {
-			resp.Diagnostics.AddError("running must be set to false if the instance is created without image or source_instance", "")
+		if plan.Running.ValueBool() && plan.Type.ValueString() != "virtual-machine" {
+			resp.Diagnostics.AddError("running must be set to false if the instance is created without image or source_instance and not type virtual-machine", "")
 			return
 		}
 
