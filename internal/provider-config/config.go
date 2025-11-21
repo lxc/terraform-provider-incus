@@ -157,7 +157,7 @@ func (p *IncusProviderConfig) server(remoteName string) (incus.Server, error) {
 
 	// If the server is not already created, create a new one.
 	remote := p.remote(remoteName)
-	if remote != nil && !remote.Bootstrapped {
+	if remote != nil && !remote.Bootstrapped && remote.Protocol == "incus" {
 		err := p.createIncusServerClient(*remote)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to create server client for remote %q: %v", remoteName, err)
@@ -220,7 +220,7 @@ func (p *IncusProviderConfig) server(remoteName string) (incus.Server, error) {
 	return server, nil
 }
 
-// createIncusServerClient will create an Incusclient for a given remote.
+// createIncusServerClient will create an Incus client for a given remote.
 // The client is then stored in the incusProvider.Config collection of clients.
 func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemoteConfig) error {
 	if remote.Address == "" {
@@ -479,14 +479,14 @@ func (p *IncusProviderConfig) SelectRemote(name string) string {
 	return p.incusConfig.DefaultRemote
 }
 
-// setIncusServer set Incusserver for the given name.
+// getIncusConfigRemote get Incus server for the given name.
 func (p *IncusProviderConfig) getIncusConfigRemote(name string) incus_config.Remote {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
 	return p.incusConfig.Remotes[name]
 }
 
-// setIncusServer set Incusserver for the given name.
+// setIncusServer set Incus server for the given name.
 func (p *IncusProviderConfig) setIncusConfigRemote(name string, remote incus_config.Remote) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
