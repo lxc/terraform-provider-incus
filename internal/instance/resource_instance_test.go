@@ -840,6 +840,29 @@ func TestAccInstance_oci(t *testing.T) {
 	})
 }
 
+func TestAccInstance_ociWithRemote(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+	ociImage := "docker:alpine:latest"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_ociWithRemote(instanceName, ociImage),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "ephemeral", "false"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "image", ociImage),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "profiles.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "profiles.0", "default"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_sourceInstance(t *testing.T) {
 	projectName := petname.Name()
 	sourceInstanceName := petname.Generate(2, "-")
@@ -1199,6 +1222,24 @@ func TestAccInstance_virtualMachineRename(t *testing.T) {
 
 func testAccInstance_basic(name string, image string) string {
 	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+}
+	`, name, image)
+}
+
+func testAccInstance_ociWithRemote(name string, image string) string {
+	return fmt.Sprintf(`
+provider "incus" {
+  remote {
+    name     = "docker"
+    address  = "https://docker.io"
+    protocol = "oci"
+    public   = true
+  }
+}
+
 resource "incus_instance" "instance1" {
   name  = "%s"
   image = "%s"
