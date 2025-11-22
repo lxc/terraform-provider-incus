@@ -114,7 +114,7 @@ resource "incus_instance" "instance1" {
   name        = "instance1"
   source_file = "/path/to/backup.tar.gz"
 
-  device = {
+  device {
     name = "storage"
     type = "disk"
 
