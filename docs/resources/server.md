@@ -5,6 +5,20 @@ Manages the configuration of an Incus server.
 An Incus server can be a standalone server or a cluster of servers.
 A full reference of server config options is available in the [documentation](https://linuxcontainers.org/incus/docs/main/server_config/).
 
+Since the incus server exists prior to the use of Terraform, because otherwise
+there would be no server to connect to, this resource is kind of a special case.
+When the resource is created, it will be shown in the Terraform plan as "create"
+but in practice, the server already exists and Terraform will only update the
+Terraform state to reflect that the server is now managed by Terraform.
+Due to this special behavior, the resource does only manage the configuration
+keys, that are explicitly set in the Terraform configuration (see Notes section
+below).
+
+Upon deletion of the resource from the Terraform configuration, the server
+remains and only the configuration settings, that have been managed by Terraform
+are unset. All the configuration keys, that have never been managed by Terraform
+will stay untouched also after destruction of the server resource.
+
 ## Example Usage
 
 ```hcl
