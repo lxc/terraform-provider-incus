@@ -309,8 +309,15 @@ func (r *CertificateResource) SyncState(ctx context.Context, tfState *tfsdk.Stat
 	m.Type = types.StringValue(certificate.Type)
 	m.Restricted = types.BoolValue(certificate.Restricted)
 	m.Projects = projects
-	m.Certificate = types.StringValue(certificate.Certificate)
 	m.Description = types.StringValue(certificate.Description)
+
+	// Preserve the original certificate value from the plan/state to avoid
+	// inconsistent results due to whitespace differences (e.g., trailing newlines).
+	// Since the certificate attribute uses RequiresReplace(), any change to it
+	// triggers resource recreation, so during normal operations the value is stable.
+	if m.Certificate.IsNull() || m.Certificate.IsUnknown() {
+		m.Certificate = types.StringValue(certificate.Certificate)
+	}
 
 	return tfState.Set(ctx, &m)
 }
