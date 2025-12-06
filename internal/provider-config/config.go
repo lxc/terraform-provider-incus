@@ -155,12 +155,19 @@ func (p *IncusProviderConfig) server(remoteName string) (incus.Server, error) {
 		return server, nil
 	}
 
-	// If the server is not already created, create a new one.
+	// If the Incus or Image Server is not already configured, create a new one.
 	remote := p.remote(remoteName)
-	if remote != nil && !remote.Bootstrapped && remote.Protocol == "incus" {
-		err := p.createIncusServerClient(*remote)
-		if err != nil {
-			return nil, fmt.Errorf("Unable to create server client for remote %q: %v", remoteName, err)
+	if remote != nil && !remote.Bootstrapped {
+		switch remote.Protocol {
+		case "oci":
+			p.createImageServerRemote(*remote)
+		case "simplestreams":
+			p.createImageServerRemote(*remote)
+		default:
+			err := p.createIncusServerClient(*remote)
+			if err != nil {
+				return nil, fmt.Errorf("Unable to create Incus Server client for remote %q: %v", remoteName, err)
+			}
 		}
 	}
 
@@ -288,6 +295,12 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 	}
 
 	return nil
+}
+
+func (p *IncusProviderConfig) createImageServerRemote(remote IncusProviderRemoteConfig) {
+	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: remote.Protocol, Public: remote.Public}
+	p.setIncusConfigRemote(remote.Name, incusRemote)
+	p.SetRemote(remote, false)
 }
 
 // fetchServerCertificate will attempt to retrieve a remote Incusserver's
