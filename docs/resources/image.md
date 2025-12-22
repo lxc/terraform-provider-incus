@@ -93,7 +93,7 @@ The following attributes are exported:
 
 * `created_at` - The datetime of image creation, in Unix time.
 
-* `fingerprint` - The unique hash fingperint of the image.
+* `fingerprint` - The unique hash fingerprint of the image.
 
 * `copied_aliases` - The list of aliases that were copied from the
   `source_image`.
