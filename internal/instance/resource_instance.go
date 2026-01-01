@@ -549,16 +549,18 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 		validateWaitFor(ctx, config, resp)
 	}
 
-	if !config.Files.IsNull() {
-		if !config.Running.IsNull() && !config.Running.ValueBool() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"Files can only be pushed to running instances.",
-			)
-		}
+	if !config.Files.IsNull() && !config.Files.IsUnknown() {
+		if len(config.Files.Elements()) > 0 {
+			if !config.Running.IsNull() && !config.Running.ValueBool() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"Files can only be pushed to running instances.",
+				)
+			}
 
-		if config.IsVirtualMachine() {
-			validateWaitForAgentWithFiles(ctx, config, resp)
+			if config.IsVirtualMachine() {
+				validateWaitForAgentWithFiles(ctx, config, resp)
+			}
 		}
 	}
 }
