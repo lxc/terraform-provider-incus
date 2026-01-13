@@ -314,12 +314,8 @@ func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource 
 }
 
 func (p *IncusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	dataSources := []func() datasource.DataSource{
+	return append([]func() datasource.DataSource{
 		cluster.NewClusterDataSource,
 		image.NewImageDataSource,
-	}
-
-	dataSources = append(dataSources, generatedDataSources()...)
-
-	return dataSources
+	}, generatedDataSources()...)
 }
