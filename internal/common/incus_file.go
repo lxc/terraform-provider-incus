@@ -61,12 +61,7 @@ func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (t
 
 // InstanceFileDelete deletes a file from an instance.
 func InstanceFileDelete(server incus.InstanceServer, instanceName string, targetPath string) error {
-	targetPath, err := toAbsFilePath(targetPath)
-	if err != nil {
-		return err
-	}
-
-	err = server.DeleteInstanceFile(instanceName, targetPath)
+	err := server.DeleteInstanceFile(instanceName, targetPath)
 	if err != nil && !errors.IsNotFoundError(err) {
 		return err
 	}
@@ -83,10 +78,7 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 		return fmt.Errorf("File %q and %q are mutually exclusive.", "content", "source_path")
 	}
 
-	targetPath, err := toAbsFilePath(file.TargetPath.ValueString())
-	if err != nil {
-		return err
-	}
+	targetPath := file.TargetPath.ValueString()
 
 	fileMode := file.Mode.ValueString()
 	if fileMode == "" {
@@ -198,20 +190,4 @@ func recursiveMkdir(server incus.InstanceServer, instanceName string, p string, 
 	}
 
 	return nil
-}
-
-// toAbsFilePath returns absolute path of the given path and ensures that
-// the path is not a directory.
-func toAbsFilePath(path string) (string, error) {
-	targetPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("Failed to determine absoulute target file path: %v", err)
-	}
-
-	isDir := strings.HasSuffix(targetPath, "/")
-	if isDir {
-		return "", fmt.Errorf("Target file %q cannot be a directory: %v", targetPath, err)
-	}
-
-	return targetPath, nil
 }
