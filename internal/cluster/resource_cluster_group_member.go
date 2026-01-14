@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -236,6 +237,11 @@ func (r *ClusterGroupMemberResource) SyncState(ctx context.Context, tfState *tfs
 	}
 
 	m.ClusterGroup = types.StringValue(clusterGroup.Name)
+
+	if !slices.Contains[[]string, string](clusterGroup.Members, m.Member.ValueString()) {
+		tfState.RemoveResource(ctx)
+		return nil
+	}
 
 	return tfState.Set(ctx, &m)
 }
