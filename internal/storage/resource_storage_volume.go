@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -42,6 +43,7 @@ type StorageVolumeModel struct {
 	Config       types.Map    `tfsdk:"config"`
 	SourceVolume types.Object `tfsdk:"source_volume"`
 	SourceFile   types.String `tfsdk:"source_file"`
+	Files        types.Set    `tfsdk:"file"`
 
 	// Computed.
 	Location types.String `tfsdk:"location"`
@@ -210,6 +212,53 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed: true,
 			},
 		},
+
+		Blocks: map[string]schema.Block{
+			"file": schema.SetNestedBlock{
+				Description: "Upload file to instance",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"content": schema.StringAttribute{
+							Optional: true,
+						},
+
+						"source_path": schema.StringAttribute{
+							Optional: true,
+						},
+
+						"target_path": schema.StringAttribute{
+							Required: true,
+						},
+
+						"uid": schema.Int64Attribute{
+							Optional: true,
+						},
+
+						"gid": schema.Int64Attribute{
+							Optional: true,
+						},
+
+						"mode": schema.StringAttribute{
+							Optional: true,
+							Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+
+						"create_directories": schema.BoolAttribute{
+							Optional: true,
+						},
+
+						// Append is here just to satisfy the IncusFile model.
+						"append": schema.BoolAttribute{
+							Computed: true,
+							Default:  booldefault.StaticBool(false),
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -269,10 +318,11 @@ func (r StorageVolumeResource) createStoragePoolVolume(ctx context.Context, resp
 
 	poolName := plan.Pool.ValueString()
 	volName := plan.Name.ValueString()
+	volType := plan.Type.ValueString()
 
 	vol := api.StorageVolumesPost{
 		Name:        plan.Name.ValueString(),
-		Type:        plan.Type.ValueString(),
+		Type:        volType,
 		ContentType: plan.ContentType.ValueString(),
 		StorageVolumePut: api.StorageVolumePut{
 			Description: plan.Description.ValueString(),
@@ -285,6 +335,8 @@ func (r StorageVolumeResource) createStoragePoolVolume(ctx context.Context, resp
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to create storage volume %q", volName), err.Error())
 		return
 	}
+
+	r.uploadFilesOnStoragePoolVolume(ctx, resp, plan, diags)
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, *plan)
@@ -347,6 +399,38 @@ func (r StorageVolumeResource) copyStoragePoolVolume(ctx context.Context, resp *
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, dstServer, *plan)
 	resp.Diagnostics.Append(diags...)
+}
+
+func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel, diags diag.Diagnostics) {
+	remote := plan.Remote.ValueString()
+	project := plan.Project.ValueString()
+	target := plan.Target.ValueString()
+	server, err := r.provider.InstanceServer(remote, project, target)
+	if err != nil {
+		resp.Diagnostics.Append(errors.NewInstanceServerError(err))
+		return
+	}
+
+	// Upload files.
+	if !plan.Files.IsNull() && !plan.Files.IsUnknown() {
+		files, diags := common.ToFileMap(ctx, plan.Files)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		poolName := plan.Pool.ValueString()
+		volumeType := plan.Type.ValueString()
+		volumeName := plan.Name.ValueString()
+
+		for _, f := range files {
+			err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, f)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q in pool %q", volumeName, poolName), err.Error())
+				return
+			}
+		}
+	}
 }
 
 func (r StorageVolumeResource) importStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel) {
@@ -424,9 +508,14 @@ func (r StorageVolumeResource) Read(ctx context.Context, req resource.ReadReques
 
 func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan StorageVolumeModel
+	var state StorageVolumeModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	diags = req.Plan.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -469,6 +558,12 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to update storage volume %q", volName), err.Error())
 		return
 	}
+
+	targetResource := fmt.Sprintf("Volume %s/%s", poolName, volName)
+	createOperation := common.VolumeCreateFileOperation(server, poolName, volType, volName)
+	getOperation := common.VolumeGetFileOperation(server, poolName, volType, volName)
+	deleteOperation := common.VolumeDeleteFileOperation(server, poolName, volType, volName)
+	common.UpdateFiles(ctx, targetResource, state.Files, plan.Files, resp, createOperation, getOperation, deleteOperation)
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)

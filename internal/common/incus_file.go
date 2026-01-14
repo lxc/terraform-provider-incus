@@ -2,7 +2,9 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,11 +12,12 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
 	"github.com/mitchellh/go-homedir"
 
-	"github.com/lxc/terraform-provider-incus/internal/errors"
+	tfierrors "github.com/lxc/terraform-provider-incus/internal/errors"
 )
 
 type InstanceFileModel struct {
@@ -28,7 +31,7 @@ type InstanceFileModel struct {
 	Append     types.Bool   `tfsdk:"append"`
 }
 
-// ToFileMap converts files from types.Set into map[string]IncusFileModel.
+// ToFileMap converts files from types.Set into map[string]InstanceFileModel.
 func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileModel, diag.Diagnostics) {
 	if fileSet.IsNull() || fileSet.IsUnknown() {
 		return make(map[string]InstanceFileModel), nil
@@ -49,7 +52,7 @@ func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileM
 	return fileMap, diags
 }
 
-// ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
+// ToFileSetType converts files from a map[string]InstanceFileModel into types.Set.
 func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (types.Set, diag.Diagnostics) {
 	files := make([]InstanceFileModel, 0, len(fileMap))
 	for _, v := range fileMap {
@@ -59,18 +62,68 @@ func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (t
 	return types.SetValueFrom(ctx, types.ObjectType{}, files)
 }
 
-// InstanceFileDelete deletes a file from an instance.
-func InstanceFileDelete(server incus.InstanceServer, instanceName string, targetPath string) error {
-	err := server.DeleteInstanceFile(instanceName, targetPath)
-	if err != nil && !errors.IsNotFoundError(err) {
+// coreFileDelete deletes a file from a resource (either an instance or a volume).
+func coreFileDelete(targetPath string, deleteOperation func(targetPath string) error) error {
+	err := deleteOperation(targetPath)
+	if err != nil && !tfierrors.IsNotFoundError(err) {
 		return err
 	}
 
 	return nil
 }
 
+func InstanceCreateFileOperation(server incus.InstanceServer, instanceName string) func(string, incus.InstanceFileArgs) error {
+	return func(targetPath string, args incus.InstanceFileArgs) error {
+		return server.CreateInstanceFile(instanceName, targetPath, args)
+	}
+}
+
+func InstanceGetFileOperation(server incus.InstanceServer, instanceName string) func(string) (io.ReadCloser, *incus.InstanceFileResponse, error) {
+	return func(targetPath string) (io.ReadCloser, *incus.InstanceFileResponse, error) {
+		return server.GetInstanceFile(instanceName, targetPath)
+	}
+}
+
+func InstanceDeleteFileOperation(server incus.InstanceServer, instanceName string) func(string) error {
+	return func(targetPath string) error {
+		return server.DeleteInstanceFile(instanceName, targetPath)
+	}
+}
+
 // InstanceFileUpload uploads a file to an instance.
 func InstanceFileUpload(server incus.InstanceServer, instanceName string, file InstanceFileModel) error {
+	createOperation := InstanceCreateFileOperation(server, instanceName)
+	getOperation := InstanceGetFileOperation(server, instanceName)
+	return coreFileUpload(file, createOperation, getOperation)
+}
+
+func VolumeCreateFileOperation(server incus.InstanceServer, pool, volumeType, volumeName string) func(string, incus.InstanceFileArgs) error {
+	return func(targetPath string, args incus.InstanceFileArgs) error {
+		return server.CreateStorageVolumeFile(pool, volumeType, volumeName, targetPath, args)
+	}
+}
+
+func VolumeGetFileOperation(server incus.InstanceServer, pool, volumeType, volumeName string) func(string) (io.ReadCloser, *incus.InstanceFileResponse, error) {
+	return func(targetPath string) (io.ReadCloser, *incus.InstanceFileResponse, error) {
+		return server.GetStorageVolumeFile(pool, volumeType, volumeName, targetPath)
+	}
+}
+
+func VolumeDeleteFileOperation(server incus.InstanceServer, pool, volumeType, volumeName string) func(string) error {
+	return func(targetPath string) error {
+		return server.DeleteStorageVolumeFile(pool, volumeType, volumeName, targetPath)
+	}
+}
+
+// VolumeFileUpload uploads a file to an volume.
+func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file InstanceFileModel) error {
+	createOperation := VolumeCreateFileOperation(server, pool, volumeType, volumeName)
+	getOperation := VolumeGetFileOperation(server, pool, volumeType, volumeName)
+	return coreFileUpload(file, createOperation, getOperation)
+}
+
+// coreFileUpload uploads a file to a resource (either an instance or a volume).
+func coreFileUpload(file InstanceFileModel, createOperation func(string, incus.InstanceFileArgs) error, getOperation func(string) (io.ReadCloser, *incus.InstanceFileResponse, error)) (err error) {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
 
@@ -111,28 +164,30 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 
 	// If a source was specified, read the contents of the source file.
 	if sourcePath != "" {
-		path, err := homedir.Expand(sourcePath)
+		currentPath, err := homedir.Expand(sourcePath)
 		if err != nil {
 			return fmt.Errorf("Unable to determine source file path: %v", err)
 		}
 
-		f, err := os.Open(path)
+		f, err := os.Open(currentPath)
 		if err != nil {
 			return fmt.Errorf("Unable to read source file: %v", err)
 		}
-		defer f.Close()
+		defer func(f *os.File) {
+			err = errors.Join(err, f.Close())
+		}(f)
 
 		args.Content = f
 	}
 
 	if file.CreateDirs.ValueBool() {
-		err := recursiveMkdir(server, instanceName, path.Dir(targetPath), *args)
+		err := recursiveMkdir(path.Dir(targetPath), *args, createOperation, getOperation)
 		if err != nil {
 			return fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
 		}
 	}
 
-	err = server.CreateInstanceFile(instanceName, targetPath, *args)
+	err = createOperation(targetPath, *args)
 	if err != nil {
 		return fmt.Errorf("Could not upload file %q: %v", targetPath, err)
 	}
@@ -140,15 +195,15 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 	return nil
 }
 
-// recursiveMkdir recursively creates directories on target instance.
+// recursiveMkdir recursively creates directories on target resource.
 // This was copied almost as-is from github.com/lxc/incus/blob/main/lxc/file.go.
-func recursiveMkdir(server incus.InstanceServer, instanceName string, p string, args incus.InstanceFileArgs) error {
-	// Special case, every instance has a /, so there is nothing to do.
+func recursiveMkdir(p string, args incus.InstanceFileArgs, createOperation func(string, incus.InstanceFileArgs) error, getOperation func(string) (io.ReadCloser, *incus.InstanceFileResponse, error)) error {
+	// Special case, every resource has a /, so there is nothing to do.
 	if p == "/" {
 		return nil
 	}
 
-	// Remove trailing "/" e.g. /A/B/C/. Otherwise we will end up with an
+	// Remove trailing "/" e.g. /A/B/C/. Otherwise, we will end up with an
 	// empty array entry "" which will confuse the Mkdir() loop below.
 	pclean := filepath.Clean(p)
 	parts := strings.Split(pclean, "/")
@@ -156,7 +211,7 @@ func recursiveMkdir(server incus.InstanceServer, instanceName string, p string, 
 
 	for ; i >= 1; i-- {
 		cur := filepath.Join(parts[:i]...)
-		_, resp, err := server.GetInstanceFile(instanceName, cur)
+		_, resp, err := getOperation(cur)
 		if err != nil {
 			continue
 		}
@@ -183,11 +238,96 @@ func recursiveMkdir(server incus.InstanceServer, instanceName string, p string, 
 			continue
 		}
 
-		err := server.CreateInstanceFile(instanceName, cur, dirArgs)
+		err := createOperation(cur, dirArgs)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func hasFileContentChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
+	hasNewContent := !newFile.Content.IsNull()
+	hasOldContent := !oldFile.Content.IsNull()
+	hasNewSourcePath := !newFile.SourcePath.IsNull()
+	hasOldSourcePath := !oldFile.SourcePath.IsNull()
+
+	switch {
+	case hasNewContent && hasOldContent:
+		return newFile.Content.ValueString() != oldFile.Content.ValueString()
+	case hasNewSourcePath && hasOldSourcePath:
+		return newFile.SourcePath.ValueString() != oldFile.SourcePath.ValueString()
+	case (hasNewSourcePath && hasOldContent) || (hasNewContent && hasOldSourcePath):
+		return true
+	}
+
+	return false
+}
+
+func hasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
+	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
+		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
+		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
+}
+
+func UpdateFiles(ctx context.Context, targetResource string, stateFiles, planFiles types.Set, resp *resource.UpdateResponse, createOperation func(string, incus.InstanceFileArgs) error, getOperation func(string) (io.ReadCloser, *incus.InstanceFileResponse, error), deleteOperation func(targetPath string) error) {
+	oldFiles, diags := ToFileMap(ctx, stateFiles)
+	resp.Diagnostics.Append(diags...)
+
+	newFiles, diags := ToFileMap(ctx, planFiles)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Remove files that are no longer present in newFiles.
+	for k, f := range oldFiles {
+		_, ok := newFiles[k]
+		if ok {
+			continue
+		}
+
+		targetPath := f.TargetPath.ValueString()
+		err := coreFileDelete(targetPath, deleteOperation)
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from %q", targetResource), err.Error())
+			return
+		}
+	}
+
+	// Upload new files or update existing files if content has changed.
+	for k, newFile := range newFiles {
+		oldFile, exists := oldFiles[k]
+
+		if !exists {
+			err := coreFileUpload(newFile, createOperation, getOperation)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to %q", targetResource), err.Error())
+				return
+			}
+			continue
+		}
+
+		contentChanged := hasFileContentChanged(newFile, oldFile)
+		permissionsChanged := hasFilePermissionChanged(newFile, oldFile)
+
+		if contentChanged || permissionsChanged {
+			// Delete the old file first otherwise mode and ownership changes
+			// will not be applied.
+			targetPath := newFile.TargetPath.ValueString()
+			err := deleteOperation(targetPath)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from %q", targetResource), err.Error())
+				return
+			}
+
+			err = coreFileUpload(newFile, createOperation, getOperation)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to %q", targetResource), err.Error())
+				return
+			}
+		}
+	}
 }
