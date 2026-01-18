@@ -513,7 +513,7 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 
-	diags = req.Plan.Get(ctx, &state)
+	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
