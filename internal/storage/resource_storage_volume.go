@@ -336,7 +336,7 @@ func (r StorageVolumeResource) createStoragePoolVolume(ctx context.Context, resp
 		return
 	}
 
-	r.uploadFilesOnStoragePoolVolume(ctx, resp, plan, diags)
+	r.uploadFilesOnStoragePoolVolume(ctx, resp, plan)
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, *plan)
@@ -401,7 +401,7 @@ func (r StorageVolumeResource) copyStoragePoolVolume(ctx context.Context, resp *
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel, diags diag.Diagnostics) {
+func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Context, resp *resource.CreateResponse, plan *StorageVolumeModel) {
 	remote := plan.Remote.ValueString()
 	project := plan.Project.ValueString()
 	target := plan.Target.ValueString()
