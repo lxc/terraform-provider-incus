@@ -49,6 +49,7 @@ type InstanceModel struct {
 	Profiles       types.List   `tfsdk:"profiles"`
 	Devices        types.Set    `tfsdk:"device"`
 	Files          types.Set    `tfsdk:"file"`
+	Exec           types.Map    `tfsdk:"exec"`
 	Config         types.Map    `tfsdk:"config"`
 	Project        types.String `tfsdk:"project"`
 	Remote         types.String `tfsdk:"remote"`
@@ -259,6 +260,40 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						path.MatchRoot("source_file"),
 						path.MatchRoot("source_instance"),
 					),
+				},
+			},
+
+			"exec": schema.MapNestedAttribute{
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"command": schema.ListAttribute{
+							Required:    true,
+							ElementType: types.StringType,
+						},
+						"environment": schema.MapAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+						},
+						"working_dir": schema.StringAttribute{
+							Optional: true,
+						},
+						"uid": schema.Int64Attribute{
+							Optional: true,
+						},
+						"gid": schema.Int64Attribute{
+							Optional: true,
+						},
+						"timeout": schema.StringAttribute{
+							Optional: true,
+						},
+						"trigger": schema.StringAttribute{
+							Optional: true,
+							Validators: []validator.String{
+								stringvalidator.OneOf("on_change", "once"),
+							},
+						},
+					},
 				},
 			},
 
@@ -563,6 +598,10 @@ func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			}
 		}
 	}
+
+	if !config.Exec.IsNull() && !config.Exec.IsUnknown() {
+		validateExec(ctx, config, resp)
+	}
 }
 
 // validateWaitFor validates the wait_for configuration blocks.
@@ -610,6 +649,40 @@ func validateWaitFor(ctx context.Context, config InstanceModel, resp *resource.V
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
 					`"delay" is required when type is set to "delay".`,
+				)
+			}
+		}
+	}
+}
+
+// validateExec validates the exec configuration.
+func validateExec(ctx context.Context, config InstanceModel, resp *resource.ValidateConfigResponse) {
+	execMap, diags := common.ToExecMap(ctx, config.Exec)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	if len(execMap) > 0 {
+		if !config.Running.IsNull() && !config.Running.ValueBool() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Exec commands can only be run on running instances.",
+			)
+		}
+
+		for name, exec := range execMap {
+			var command []string
+			diags = exec.Command.ElementsAs(ctx, &command, false)
+			if diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+
+			if len(command) == 0 || command[0] == "" {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					fmt.Sprintf("Exec entry %q must include a non-empty command.", name),
 				)
 			}
 		}
@@ -716,6 +789,44 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
+			}
+		}
+	}
+
+	// Run exec commands.
+	if !plan.Exec.IsNull() && !plan.Exec.IsUnknown() {
+		execPlan, diags := common.ToExecMap(ctx, plan.Exec)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		if len(execPlan) > 0 {
+			runs, diags := collectExecRuns(ctx, execPlan, nil, true)
+			if diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+
+			if len(runs) > 0 {
+				if plan.IsVirtualMachine() {
+					diags := waitForInstanceAgent(ctx, server, instanceName)
+					if diags != nil {
+						resp.Diagnostics.Append(diags...)
+						return
+					}
+				}
+
+				for _, run := range runs {
+					stdout, stderr, err := common.RunInstanceExec(ctx, server, instanceName, run.ExecConfig)
+					if err != nil {
+						resp.Diagnostics.AddError(
+							fmt.Sprintf("Failed to execute command %q in instance %q", run.Name, instanceName),
+							formatExecError(err, stdout, stderr),
+						)
+						return
+					}
+				}
 			}
 		}
 	}
@@ -916,6 +1027,50 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Run exec commands.
+	if !plan.Exec.IsNull() && !plan.Exec.IsUnknown() {
+		execPlan, diags := common.ToExecMap(ctx, plan.Exec)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		if len(execPlan) > 0 {
+			execState, diags := common.ToExecMap(ctx, state.Exec)
+			if diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+
+			runs, diags := collectExecRuns(ctx, execPlan, execState, false)
+			if diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+
+			if len(runs) > 0 {
+				if plan.IsVirtualMachine() {
+					diags := waitForInstanceAgent(ctx, server, instanceName)
+					if diags != nil {
+						resp.Diagnostics.Append(diags...)
+						return
+					}
+				}
+
+				for _, run := range runs {
+					stdout, stderr, err := common.RunInstanceExec(ctx, server, instanceName, run.ExecConfig)
+					if err != nil {
+						resp.Diagnostics.AddError(
+							fmt.Sprintf("Failed to execute command %q in instance %q", run.Name, instanceName),
+							formatExecError(err, stdout, stderr),
+						)
+						return
+					}
+				}
+			}
+		}
+	}
+
 	// Rename instance
 	newInstanceName := plan.Name.ValueString()
 	if instanceName != newInstanceName {
@@ -964,6 +1119,88 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)
 	resp.Diagnostics.Append(diags...)
+}
+
+type execRun struct {
+	Name       string
+	ExecConfig common.InstanceExecConfig
+}
+
+// collectExecRuns returns the ordered exec entries to run based on
+// trigger semantics, plan/state differences, and whether the provider started
+// the instance.
+func collectExecRuns(ctx context.Context, planExec map[string]common.InstanceExecModel, stateExec map[string]common.InstanceExecModel, isCreate bool) ([]execRun, diag.Diagnostics) {
+	if stateExec == nil {
+		stateExec = map[string]common.InstanceExecModel{}
+	}
+
+	orderedRuns := make([]execRun, 0, len(planExec))
+	for _, name := range utils.SortMapKeys(planExec) {
+		planExecConfig, diags := common.ToExecConfig(ctx, planExec[name])
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		execStateConfig, hasState, diags := getExecStateConfig(ctx, stateExec, name)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		if !shouldRunExec(planExecConfig, execStateConfig, hasState, isCreate) {
+			continue
+		}
+
+		orderedRuns = append(orderedRuns, execRun{Name: name, ExecConfig: planExecConfig})
+	}
+
+	return orderedRuns, nil
+}
+
+// getExecStateConfig returns the normalized exec config from state along with a
+// flag indicating whether the entry exists in state.
+func getExecStateConfig(ctx context.Context, stateExec map[string]common.InstanceExecModel, name string) (common.InstanceExecConfig, bool, diag.Diagnostics) {
+	stateModel, ok := stateExec[name]
+	if !ok {
+		return common.InstanceExecConfig{}, false, nil
+	}
+
+	stateSpec, diags := common.ToExecConfig(ctx, stateModel)
+	if diags.HasError() {
+		return common.InstanceExecConfig{}, false, diags
+	}
+
+	return stateSpec, true, nil
+}
+
+func shouldRunExec(planExecConfig common.InstanceExecConfig, stateExecConfig common.InstanceExecConfig, hasState bool, isCreate bool) bool {
+	switch planExecConfig.Trigger {
+	case "once":
+		return isCreate
+	case "on_change":
+		if isCreate || !hasState {
+			return true
+		}
+
+		return !common.ExecConfigEqual(planExecConfig, stateExecConfig)
+	default:
+		return false
+	}
+}
+
+func formatExecError(err error, stdout string, stderr string) string {
+	message := err.Error()
+	stdout = strings.TrimSpace(stdout)
+	stderr = strings.TrimSpace(stderr)
+
+	if stdout != "" {
+		message = fmt.Sprintf("%s\nstdout: %s", message, stdout)
+	}
+
+	if stderr != "" {
+		message = fmt.Sprintf("%s\nstderr: %s", message, stderr)
+	}
+
+	return message
 }
 
 func (r InstanceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
