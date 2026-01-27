@@ -895,8 +895,8 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 			continue
 		}
 
-		contentChanged := hasFileContentChanged(newFile, oldFile)
-		permissionsChanged := hasFilePermissionChanged(newFile, oldFile)
+		contentChanged := common.HasFileContentChanged(newFile, oldFile)
+		permissionsChanged := common.HasFilePermissionChanged(newFile, oldFile)
 
 		if contentChanged || permissionsChanged {
 			// Delete the old file first otherwise mode and ownership changes
@@ -964,30 +964,6 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)
 	resp.Diagnostics.Append(diags...)
-}
-
-func hasFileContentChanged(newFile common.InstanceFileModel, oldFile common.InstanceFileModel) bool {
-	hasNewContent := !newFile.Content.IsNull()
-	hasOldContent := !oldFile.Content.IsNull()
-	hasNewSourcePath := !newFile.SourcePath.IsNull()
-	hasOldSourcePath := !oldFile.SourcePath.IsNull()
-
-	switch {
-	case hasNewContent && hasOldContent:
-		return newFile.Content.ValueString() != oldFile.Content.ValueString()
-	case hasNewSourcePath && hasOldSourcePath:
-		return newFile.SourcePath.ValueString() != oldFile.SourcePath.ValueString()
-	case (hasNewSourcePath && hasOldContent) || (hasNewContent && hasOldSourcePath):
-		return true
-	}
-
-	return false
-}
-
-func hasFilePermissionChanged(newFile common.InstanceFileModel, oldFile common.InstanceFileModel) bool {
-	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
-		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
-		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
 }
 
 func (r InstanceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
