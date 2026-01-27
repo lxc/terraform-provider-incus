@@ -560,10 +560,65 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	targetResource := fmt.Sprintf("Volume %s/%s", poolName, volName)
-	createOperation := common.VolumeCreateFileOperation(server, poolName, volType, volName)
-	getOperation := common.VolumeGetFileOperation(server, poolName, volType, volName)
-	deleteOperation := common.VolumeDeleteFileOperation(server, poolName, volType, volName)
-	common.UpdateFiles(ctx, targetResource, state.Files, plan.Files, resp, createOperation, getOperation, deleteOperation)
+
+	oldFiles, diags := common.ToFileMap(ctx, state.Files)
+	resp.Diagnostics.Append(diags...)
+
+	newFiles, diags := common.ToFileMap(ctx, plan.Files)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Remove files that are no longer present in newFiles.
+	for k, f := range oldFiles {
+		_, ok := newFiles[k]
+		if ok {
+			continue
+		}
+
+		targetPath := f.TargetPath.ValueString()
+		err := common.VolumeFileDelete(server, poolName, volType, volName, targetPath)
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from volume %q", targetResource), err.Error())
+			return
+		}
+	}
+
+	// Upload new files or update existing files if content has changed.
+	for k, newFile := range newFiles {
+		oldFile, exists := oldFiles[k]
+
+		if !exists {
+			err := common.VolumeFileUpload(server, poolName, volType, volName, newFile)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q", targetResource), err.Error())
+				return
+			}
+			continue
+		}
+
+		contentChanged := common.HasFileContentChanged(newFile, oldFile)
+		permissionsChanged := common.HasFilePermissionChanged(newFile, oldFile)
+
+		if contentChanged || permissionsChanged {
+			// Delete the old file first otherwise mode and ownership changes
+			// will not be applied.
+			targetPath := newFile.TargetPath.ValueString()
+			err := common.VolumeFileDelete(server, poolName, volType, volName, targetPath)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from volume %q", targetResource), err.Error())
+				return
+			}
+
+			err = common.VolumeFileUpload(server, poolName, volType, volName, newFile)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to volume %q", targetResource), err.Error())
+				return
+			}
+		}
+	}
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)

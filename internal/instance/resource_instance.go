@@ -857,11 +857,64 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	targetResource := fmt.Sprintf("Instance %s", instance.Name)
-	createOperation := common.InstanceCreateFileOperation(server, instanceName)
-	getOperation := common.InstanceGetFileOperation(server, instanceName)
-	deleteOperation := common.InstanceDeleteFileOperation(server, instanceName)
-	common.UpdateFiles(ctx, targetResource, state.Files, plan.Files, resp, createOperation, getOperation, deleteOperation)
+	oldFiles, diags := common.ToFileMap(ctx, state.Files)
+	resp.Diagnostics.Append(diags...)
+
+	newFiles, diags := common.ToFileMap(ctx, plan.Files)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Remove files that are no longer present in newFiles.
+	for k, f := range oldFiles {
+		_, ok := newFiles[k]
+		if ok {
+			continue
+		}
+
+		targetPath := f.TargetPath.ValueString()
+		err := common.InstanceFileDelete(server, instanceName, targetPath)
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from instance %q", instanceName), err.Error())
+			return
+		}
+	}
+
+	// Upload new files or update existing files if content has changed.
+	for k, newFile := range newFiles {
+		oldFile, exists := oldFiles[k]
+
+		if !exists {
+			err := common.InstanceFileUpload(server, instanceName, newFile)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
+				return
+			}
+			continue
+		}
+
+		contentChanged := common.HasFileContentChanged(newFile, oldFile)
+		permissionsChanged := common.HasFilePermissionChanged(newFile, oldFile)
+
+		if contentChanged || permissionsChanged {
+			// Delete the old file first otherwise mode and ownership changes
+			// will not be applied.
+			targetPath := newFile.TargetPath.ValueString()
+			err := common.InstanceFileDelete(server, instanceName, targetPath)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to delete file from instance %q", instanceName), err.Error())
+				return
+			}
+
+			err = common.InstanceFileUpload(server, instanceName, newFile)
+			if err != nil {
+				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to instance %q", instanceName), err.Error())
+				return
+			}
+		}
+	}
 
 	// Rename instance
 	newInstanceName := plan.Name.ValueString()
