@@ -46,6 +46,7 @@ type NetworkACLRuleModel struct {
 	Description     types.String `tfsdk:"description"`
 	State           types.String `tfsdk:"state"`
 	Source          types.String `tfsdk:"source"`
+	SourcePort      types.String `tfsdk:"source_port"`
 	ICMPType        types.String `tfsdk:"icmp_type"`
 	ICMPCode        types.String `tfsdk:"icmp_code"`
 }
@@ -130,6 +131,7 @@ func getACLRuleObjectType() types.ObjectType {
 			"description":      types.StringType,
 			"state":            types.StringType,
 			"source":           types.StringType,
+			"source_port":      types.StringType,
 			"icmp_type":        types.StringType,
 			"icmp_code":        types.StringType,
 		},
@@ -167,6 +169,10 @@ func ruleAttributes() map[string]schema.Attribute {
 			},
 		},
 		"source": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"source_port": schema.StringAttribute{
 			Optional: true,
 			Computed: true,
 		},
@@ -272,6 +278,7 @@ func toNetworkACLRules(ctx context.Context, aclRuleList types.Set) ([]api.Networ
 			Description:     aclRuleModel.Description.ValueString(),
 			State:           aclRuleModel.State.ValueString(),
 			Source:          aclRuleModel.Source.ValueString(),
+			SourcePort:      aclRuleModel.SourcePort.ValueString(),
 		}
 
 		if protocol == "icmp4" || protocol == "icmp6" {
@@ -458,6 +465,7 @@ func toNetworkACLRulesListType(networkACLRules []api.NetworkACLRule) (types.Set,
 			"description":      types.StringValue(rule.Description),
 			"state":            types.StringValue(rule.State),
 			"source":           types.StringValue(rule.Source),
+			"source_port":      types.StringValue(rule.SourcePort),
 			"icmp_type":        types.StringValue(rule.ICMPType),
 			"icmp_code":        types.StringValue(rule.ICMPCode),
 		}
