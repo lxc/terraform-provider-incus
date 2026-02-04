@@ -113,6 +113,158 @@ func TestAccInstance_ephemeralStopped(t *testing.T) {
 	})
 }
 
+func TestAccInstance_execTriggerOnChangeRunsOnCreate(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execOnChangeCreateFile(instanceName, "v1"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v1"),
+				),
+			},
+			{
+				// The file is created on the first apply; this step verifies it exists.
+				Config: testAccInstance_execOnChangeVerifyFile(instanceName, "v2"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v2"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execTriggerOnChangeSkipsOnUnchangedUpdate(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execOnChangeGuard(instanceName, "v1"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v1"),
+				),
+			},
+			{
+				// The guard command would fail if the exec re-ran without changes.
+				Config: testAccInstance_execOnChangeGuard(instanceName, "v2"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v2"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execTriggerOnChangeRunsOnChangedUpdate(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execOnChangeSuccess(instanceName, "v1"),
+			},
+			{
+				// This step fails only if the exec runs after the change.
+				Config:      testAccInstance_execOnChangeFail(instanceName, "v2"),
+				ExpectError: regexp.MustCompile("Failed to execute command"),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execTriggerOnceRunsOnlyOnCreate(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execOnceCreateFile(instanceName, "v1"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v1"),
+				),
+			},
+			{
+				// The verify command proves the file was created on the first apply.
+				Config: testAccInstance_execOnceVerifyAndGuard(instanceName, "v2"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v2"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execWorkingDir(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execWorkingDirWrite(instanceName, "v1"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v1"),
+				),
+			},
+			{
+				Config: testAccInstance_execWorkingDirVerify(instanceName, "v2"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v2"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execEnvironment(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_execEnvironmentWrite(instanceName, "v1"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v1"),
+				),
+			},
+			{
+				Config: testAccInstance_execEnvironmentVerify(instanceName, "v2"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "description", "v2"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_execTimeout(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccInstance_execTimeout(instanceName),
+				ExpectError: regexp.MustCompile("context deadline exceeded"),
+			},
+		},
+	})
+}
+
 func TestAccInstance_container(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -2071,6 +2223,246 @@ resource "incus_instance" "instance1" {
   }
 }
 	`, networkName, instanceName, acctest.TestImage)
+}
+
+func testAccInstance_execOnChangeCreateFile(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-on-change-%s", instanceName)
+	command := fmt.Sprintf("echo created > %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "on-change" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, command)
+}
+
+func testAccInstance_execOnChangeVerifyFile(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-on-change-%s", instanceName)
+	command := fmt.Sprintf("test -f %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "on-change" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, command)
+}
+
+func testAccInstance_execOnChangeGuard(instanceName, description string) string {
+	// Guard fails if exec re-runs.
+	guardPath := fmt.Sprintf("/tmp/exec-on-change-guard-%s", instanceName)
+	guardCommand := fmt.Sprintf("if [ -f %s ]; then exit 1; fi; touch %s", guardPath, guardPath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "on-change" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, guardCommand)
+}
+
+func testAccInstance_execOnChangeSuccess(instanceName, description string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "on-change" = {
+      command = ["/bin/sh", "-lc", "true"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description)
+}
+
+func testAccInstance_execOnChangeFail(instanceName, description string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "on-change" = {
+      command = ["/bin/sh", "-lc", "exit 1"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description)
+}
+
+func testAccInstance_execOnceCreateFile(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-once-%s", instanceName)
+	command := fmt.Sprintf("touch %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "once" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "once"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, command)
+}
+
+func testAccInstance_execOnceVerifyAndGuard(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-once-%s", instanceName)
+	guardCommand := fmt.Sprintf("if [ -f %s ]; then exit 1; fi; touch %s", filePath, filePath)
+	verifyCommand := fmt.Sprintf("test -f %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "once" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "once"
+    }
+    "verify" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, guardCommand, verifyCommand)
+}
+
+func testAccInstance_execWorkingDirWrite(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-working-dir-%s", instanceName)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "working-dir" = {
+      command     = ["/bin/sh", "-lc", "pwd > %s"]
+      working_dir = "/tmp"
+      trigger     = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, filePath)
+}
+
+func testAccInstance_execWorkingDirVerify(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-working-dir-%s", instanceName)
+	verifyCommand := fmt.Sprintf("grep -qx /tmp %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "working-dir" = {
+      command     = ["/bin/sh", "-lc", "%s"]
+      working_dir = "/"
+      trigger     = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, verifyCommand)
+}
+
+func testAccInstance_execEnvironmentWrite(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-env-%s", instanceName)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "environment" = {
+      command     = ["/bin/sh", "-lc", "echo $FOO > %s"]
+      environment = {
+        FOO = "bar"
+      }
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, filePath)
+}
+
+func testAccInstance_execEnvironmentVerify(instanceName, description string) string {
+	filePath := fmt.Sprintf("/tmp/exec-env-%s", instanceName)
+	verifyCommand := fmt.Sprintf("grep -qx bar %s", filePath)
+
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name        = "%s"
+  image       = "%s"
+  description = "%s"
+
+  exec = {
+    "environment" = {
+      command = ["/bin/sh", "-lc", "%s"]
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage, description, verifyCommand)
+}
+
+func testAccInstance_execTimeout(instanceName string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  exec = {
+    "timeout" = {
+      command = ["/bin/sh", "-lc", "sleep 5"]
+      timeout = "1s"
+      trigger = "on_change"
+    }
+  }
+}
+`, instanceName, acctest.TestImage)
 }
 
 func testAccInstance_waitForIPv4AndIPv6(networkName, instanceName string) string {

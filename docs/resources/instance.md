@@ -141,6 +141,41 @@ resource "incus_instance" "instance1" {
 }
 ```
 
+## Example of running exec commands
+
+```hcl
+resource "incus_instance" "instance1" {
+  name  = "instance1"
+  image = "images:debian/12"
+
+  file {
+    content            = var.ssh_pubkey
+    target_path        = "/root/.ssh/authorized_keys"
+    uid                = 0
+    gid                = 0
+    mode               = "0600"
+    create_directories = true
+  }
+
+  exec = {
+    "00-install-ssh" = {
+      command = ["apt-get", "update"]
+      trigger = "once"
+    }
+
+    "01-install-ssh" = {
+      command = ["apt-get", "install", "-y", "openssh-server"]
+      timeout = "5m"
+      trigger = "once"
+    }
+
+    "10-restart-ssh" = {
+      command = ["systemctl", "restart", "ssh"]
+    }
+  }
+}
+```
+
 ## Example of waiting for a certain time period
 
 ```hcl
@@ -235,6 +270,8 @@ resource "incus_instance" "instance1" {
 
 * `file` - *Optional* - File to upload to the instance. See reference below.
 
+* `exec` - *Optional* - Map of exec commands to run on the instance. See reference below.
+
 * `config` - *Optional* - Map of key/value pairs of
   [instance config settings](https://linuxcontainers.org/incus/docs/main/reference/instance_options/).
 
@@ -292,6 +329,28 @@ The `file` block supports:
 
 * `create_directories` - *Optional* - Whether to create the directories leading
   to the target if they do not exist.
+
+The `exec` block supports:
+
+* `command` - **Required** - Command to execute as a list of strings where the first
+  element is the executable and the rest are arguments.
+
+* `environment` - *Optional* - Map of environment variables to set for the command.
+
+* `working_dir` - *Optional* - Working directory for the command.
+
+* `uid` - *Optional* - The UID to run the command as.
+
+* `gid` - *Optional* - The GID to run the command as.
+
+* `timeout` - *Optional* - Timeout for the command, e.g. `30s` or `5m`.
+
+* `trigger` - *Optional* - When to run the command. Supported values are `on_change`,
+  and `once`. Defaults to `on_change`.
+
+Exec entries run in lexicographic key order, after any file uploads. Exec commands
+require the instance to be running. For virtual machines, an Incus agent must be
+available before exec commands can run.
 
 ## Attribute Reference
 
