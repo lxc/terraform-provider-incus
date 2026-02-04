@@ -395,6 +395,96 @@ func TestAccStorageVolume_sourceFileIso(t *testing.T) {
 	})
 }
 
+func TestAccStorageVolume_fileUploadContent(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_fileUploadContent_1(poolName, volumeName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.mode", "0644"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.content", "Hello, World!\n"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.target_path", "/foo/bar.txt"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.create_directories", "true"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_fileUploadContent_2(poolName, volumeName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.mode", "0777"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.content", "Hello, World!\n"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.target_path", "/foo/bar.txt"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.create_directories", "true"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_fileUploadContent_3(poolName, volumeName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.mode", "0777"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.content", "Goodbye, World!\n"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.target_path", "/foo/bar.txt"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.create_directories", "false"),
+				),
+			},
+			{
+				Config: testAccStorageVolume_removeFileUploadContent_3(poolName, volumeName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccStorageVolume_fileUploadSource(t *testing.T) {
+	poolName := petname.Generate(2, "-")
+	volumeName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageVolume_fileUploadSource(poolName, volumeName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "name", poolName),
+					resource.TestCheckResourceAttr("incus_storage_pool.pool1", "driver", "lvm"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "name", volumeName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "pool", poolName),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.mode", "0644"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.source_path", "../acctest/fixtures/test-file.txt"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.target_path", "/foo/bar.txt"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.create_directories", "true"),
+				),
+			},
+		},
+	})
+}
+
 func testAccStorageVolume_basic(poolName, volumeName string) string {
 	return fmt.Sprintf(`
 resource "incus_storage_pool" "pool1" {
@@ -619,4 +709,104 @@ resource "incus_storage_volume" "volume1" {
 }
 `,
 		poolName, volumeName, sourceFile)
+}
+
+func testAccStorageVolume_fileUploadContent_1(poolName, volumeName string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+  file {
+    content            = "Hello, World!\n"
+    target_path        = "/foo/bar.txt"
+    mode               = "0644"
+    create_directories = true
+  }
+}
+`, poolName, volumeName)
+}
+
+func testAccStorageVolume_fileUploadContent_2(poolName, volumeName string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+  file {
+    content            = "Hello, World!\n"
+    target_path        = "/foo/bar.txt"
+    mode               = "0777"
+    create_directories = true
+  }
+}
+
+	`, poolName, volumeName)
+}
+
+func testAccStorageVolume_fileUploadContent_3(poolName, volumeName string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+  file {
+    content            = "Goodbye, World!\n"
+    target_path        = "/foo/bar.txt"
+    mode               = "0777"
+    create_directories = false
+  }
+}
+	`, poolName, volumeName)
+}
+
+func testAccStorageVolume_removeFileUploadContent_3(poolName, volumeName string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+}
+	`, poolName, volumeName)
+}
+
+func testAccStorageVolume_fileUploadSource(poolName, volumeName string) string {
+	return fmt.Sprintf(`
+resource "incus_storage_pool" "pool1" {
+  name   = "%[1]s"
+  driver = "lvm"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name = "%[2]s"
+  pool = incus_storage_pool.pool1.name
+
+  file {
+    source_path        = "../acctest/fixtures/test-file.txt"
+    target_path        = "/foo/bar.txt"
+    mode               = "0644"
+    create_directories = true
+  }
+}
+	`, poolName, volumeName)
 }
