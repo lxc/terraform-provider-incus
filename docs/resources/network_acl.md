@@ -37,6 +37,15 @@ resource "incus_network_acl" "acl1" {
       protocol         = "tcp"
       description      = "Incoming SSH connections"
       state            = "logged"
+    },
+    {
+      action           = "allow"
+      source           = "@external"
+      source_port      = "67"
+      destination_port = "68"
+      protocol         = "udp"
+      description      = "DHCP to instance"
+      state            = "enabled"
     }
   ]
 }
@@ -77,6 +86,8 @@ The network ACL rule supports:
 * `protocol` - *Optional* - If protocol is `udp` or `tcp`, then a comma-separated list of ports or port ranges (start-end inclusive), or empty for any
 
 * `source` - *Optional* - Comma-separated list of CIDR or IP ranges, source subject name selectors (for ingress rules), or empty for any
+
+* `source_port` - *Optional* - If protocol is `udp` or tcp, then a comma-separated list of ports or port ranges (start-end inclusive), or empty for any
 
 * `state` - *Optional* - State of the rule (enabled, disabled or logged), defaulting to enabled if not specified
 
