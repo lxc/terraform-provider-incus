@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework v1.17.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0
 	github.com/hashicorp/terraform-plugin-go v0.29.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.2
 	github.com/hashicorp/terraform-plugin-testing v1.14.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/lxc/incus/v6 v6.21.0
