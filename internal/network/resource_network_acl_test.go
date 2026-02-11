@@ -142,6 +142,35 @@ func TestAccNetworkACL_egressAndIngress(t *testing.T) {
 	})
 }
 
+func TestAccNetworkACL_sourcePort(t *testing.T) {
+	aclName := petname.Generate(2, "-")
+
+	entry := map[string]string{
+		"action":           "allow",
+		"source":           "@external",
+		"source_port":      "67",
+		"destination_port": "68",
+		"protocol":         "udp",
+		"description":      "DHCP to instance",
+		"state":            "enabled",
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccNetworkACL_withSourcePort(aclName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_network_acl.acl", "name", aclName),
+					resource.TestCheckResourceAttr("incus_network_acl.acl", "description", "Network ACL with source port"),
+					resource.TestCheckTypeSetElemNestedAttrs("incus_network_acl.acl", "ingress.*", entry),
+				),
+			},
+		},
+	})
+}
+
 func testAccNetworkACL(aclName string) string {
 	return fmt.Sprintf(`
 resource "incus_network_acl" "acl" {
@@ -232,6 +261,27 @@ resource "incus_network_acl" "acl" {
       protocol         = "tcp"
       description      = "Incoming SSH connections"
       state            = "logged"
+    }
+  ]
+}
+`, aclName)
+}
+
+func testAccNetworkACL_withSourcePort(aclName string) string {
+	return fmt.Sprintf(`
+resource "incus_network_acl" "acl" {
+  name        = "%[1]s"
+  description = "Network ACL with source port"
+
+  ingress = [
+    {
+      action           = "allow"
+      source           = "@external"
+      source_port      = "67"
+      destination_port = "68"
+      protocol         = "udp"
+      description      = "DHCP to instance"
+      state            = "enabled"
     }
   ]
 }
