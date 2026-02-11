@@ -44,7 +44,6 @@ type IncusProviderModel struct {
 	Remotes                    []IncusProviderRemoteModel `tfsdk:"remote"`
 	DefaultRemote              types.String               `tfsdk:"default_remote"`
 	ConfigDir                  types.String               `tfsdk:"config_dir"`
-	Project                    types.String               `tfsdk:"project"`
 	AcceptRemoteCertificate    types.Bool                 `tfsdk:"accept_remote_certificate"`
 	GenerateClientCertificates types.Bool                 `tfsdk:"generate_client_certificates"`
 }
@@ -84,11 +83,6 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			"accept_remote_certificate": schema.BoolAttribute{
 				Optional:    true,
 				Description: "Accept the server certificate.",
-			},
-
-			"project": schema.StringAttribute{
-				Optional:    true,
-				Description: "The project where project-scoped resources will be created. Can be overridden in individual resources. (default = default)",
 			},
 			"default_remote": schema.StringAttribute{
 				Optional:    true,
@@ -203,12 +197,6 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			resp.Diagnostics.AddError("Failed to generate client certificate", err.Error())
 			return
 		}
-	}
-
-	// Determine project.
-	project := data.Project.ValueString()
-	if project != "" {
-		config.ProjectOverride = project
 	}
 
 	// Initialize global IncusProvider struct.
