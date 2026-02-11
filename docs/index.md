@@ -73,8 +73,6 @@ The following arguments are supported:
   also be set with the `INCUS_ACCEPT_SERVER_CERTIFICATE` environment variable.
   Defaults to `false`
 
-* `project` - *Optional* - The project where project-scoped resources will be created. Can be overridden in individual resources. Defaults to `default`.
-
 * `default_remote` - *Optional* - The `name` of the default remote to use when no other remote is defined in a resource. 
 
 The `remote` block supports:
