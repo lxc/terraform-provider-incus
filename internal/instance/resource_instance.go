@@ -1372,7 +1372,7 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	// Update "running" attribute based on the instance's current status.
 	// This way, terraform will detect the change if the current status
 	// does not match the expected one.
-	m.Running = types.BoolValue(instanceState.Status == api.Running.String())
+	m.Running = types.BoolValue(isInstanceRunning(*instanceState))
 
 	m.Target = types.StringValue("")
 	if server.IsClustered() || instance.Location != "none" {
