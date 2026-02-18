@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -34,6 +35,7 @@ type IncusProviderRemoteModel struct {
 	Name               types.String `tfsdk:"name"`
 	Address            types.String `tfsdk:"address"`
 	Protocol           types.String `tfsdk:"protocol"`
+	CredentialsHelper  types.String `tfsdk:"credentials_helper"`
 	AuthenticationType types.String `tfsdk:"authentication_type"`
 	Token              types.String `tfsdk:"token"`
 	Public             types.Bool   `tfsdk:"public"`
@@ -110,6 +112,15 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 							Description: "Server protocol ( incus, oci or simplestreams )",
 							Validators: []validator.String{
 								stringvalidator.OneOf("incus", "oci", "simplestreams"),
+							},
+						},
+
+						"credentials_helper": schema.StringAttribute{
+							Optional:    true,
+							Description: "Credential helper executable for OCI registry authentication. ( Only for the `oci` protocol )",
+							Validators: []validator.String{
+								stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("protocol")),
+								provider_validators.CheckProtocol("oci"),
 							},
 						},
 
@@ -220,6 +231,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			Name:               envName,
 			Address:            incusAddress,
 			Protocol:           os.Getenv("INCUS_PROTOCOL"),
+			CredentialsHelper:  os.Getenv("INCUS_OCI_CREDENTIALS_HELPER"),
 			AuthenticationType: os.Getenv("INCUS_AUTHENTICATION_TYPE"),
 			Token:              os.Getenv("INCUS_TOKEN"),
 			Public:             false,
@@ -257,6 +269,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			Name:               remote.Name.ValueString(),
 			Address:            remote.Address.ValueString(),
 			Protocol:           protocol,
+			CredentialsHelper:  remote.CredentialsHelper.ValueString(),
 			AuthenticationType: autheticationType,
 			Token:              remote.Token.ValueString(),
 			Public:             remote.Public.ValueBool(),
