@@ -83,6 +83,8 @@ The `remote` block supports:
 
 * `protocol` - *Optional* - The server protocol to use. Valid values are `incus`, `oci`, or `simplestreams`. Defaults to `incus`.
 
+* `credentials_helper` - *Optional* - Credential helper executable used for OCI registry authentication. Only valid when `protocol` is set to `oci`.
+
 * `authentication_type` - *Optional* - Server authentication type. Valid values are `tls` or `oidc`. Defaults to `tls`. ( Only for the `incus` protocol )
 
 * `token` - *Optional* - The one-time trust [token](https://linuxcontainers.org/incus/docs/main/authentication/#adding-client-certificates-using-tokens) used for initial authentication with the Incus remote.
@@ -105,6 +107,7 @@ The required variables are:
 * `INCUS_PROTOCOL` - The server protocol to use.
 * `INCUS_AUTHENTICATION_TYPE` - Server authentication type.
 * `INCUS_TOKEN` - The trust token of the Incus remote.
+* `INCUS_OCI_CREDENTIALS_HELPER` - Credential helper executable used for OCI registry authentication.
 
 ## PKI Support
 
