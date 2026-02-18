@@ -26,6 +26,7 @@ type IncusProviderRemoteConfig struct {
 	Name               string
 	Address            string
 	Protocol           string
+	CredentialsHelper  string
 	AuthenticationType string
 	Token              string
 	Public             bool
@@ -298,7 +299,7 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 }
 
 func (p *IncusProviderConfig) createImageServerRemote(remote IncusProviderRemoteConfig) {
-	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: remote.Protocol, Public: remote.Public}
+	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: remote.Protocol, CredHelper: remote.CredentialsHelper, Public: remote.Public}
 	p.setIncusConfigRemote(remote.Name, incusRemote)
 	p.SetRemote(remote, false)
 }
