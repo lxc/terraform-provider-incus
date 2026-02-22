@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -13,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
@@ -28,6 +31,7 @@ type ClusterGroupModel struct {
 	Description types.String `tfsdk:"description"`
 	Remote      types.String `tfsdk:"remote"`
 	Config      types.Map    `tfsdk:"config"`
+	Members     types.Set    `tfsdk:"members"`
 }
 
 type ClusterGroupResource struct {
@@ -71,6 +75,15 @@ func (r *ClusterGroupResource) Schema(ctx context.Context, req resource.SchemaRe
 				ElementType: types.StringType,
 				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			},
+
+			"members": schema.SetAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Validators: []validator.Set{
+					// Prevent empty values.
+					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
 		},
 	}
 }
@@ -108,6 +121,10 @@ func (r *ClusterGroupResource) Create(ctx context.Context, req resource.CreateRe
 
 	config, diags := common.ToConfigMap(ctx, plan.Config)
 	resp.Diagnostics.Append(diags...)
+
+	members, diags := ToMemberSet(ctx, plan.Members)
+	diags.Append(diags...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -117,6 +134,7 @@ func (r *ClusterGroupResource) Create(ctx context.Context, req resource.CreateRe
 		ClusterGroupPut: api.ClusterGroupPut{
 			Description: plan.Description.ValueString(),
 			Config:      config,
+			Members:     members,
 		},
 	}
 
@@ -167,7 +185,7 @@ func (r *ClusterGroupResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	clusterGroupName := plan.Name.ValueString()
-	clusterGroup, etag, err := server.GetClusterGroup(clusterGroupName)
+	_, etag, err := server.GetClusterGroup(clusterGroupName)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve cluster group %q", clusterGroupName), err.Error())
 		return
@@ -175,6 +193,10 @@ func (r *ClusterGroupResource) Update(ctx context.Context, req resource.UpdateRe
 
 	config, diags := common.ToConfigMap(ctx, plan.Config)
 	resp.Diagnostics.Append(diags...)
+
+	members, diags := ToMemberSet(ctx, plan.Members)
+	diags.Append(diags...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -182,7 +204,7 @@ func (r *ClusterGroupResource) Update(ctx context.Context, req resource.UpdateRe
 	updatedClusterGroup := api.ClusterGroupPut{
 		Description: plan.Description.ValueString(),
 		Config:      config,
-		Members:     clusterGroup.Members,
+		Members:     members,
 	}
 
 	err = server.UpdateClusterGroup(clusterGroupName, updatedClusterGroup, etag)
@@ -212,6 +234,23 @@ func (r *ClusterGroupResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	clusterGroupName := state.Name.ValueString()
+	clusterGroup, etag, err := server.GetClusterGroup(clusterGroupName)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve cluster group %q", clusterGroupName), err.Error())
+		return
+	}
+
+	// Before we can delete a cluster group, we need to remove all members first.
+	updatedClusterGroup := api.ClusterGroupPut{
+		Description: clusterGroup.Description,
+	}
+
+	err = server.UpdateClusterGroup(clusterGroupName, updatedClusterGroup, etag)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to remove members from cluster group %q", clusterGroupName), err.Error())
+		return
+	}
+
 	err = server.DeleteClusterGroup(clusterGroupName)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to remove cluster group %q", clusterGroupName), err.Error())
@@ -255,6 +294,10 @@ func (r *ClusterGroupResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 
 	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(clusterGroup.Config), m.Config)
 	respDiags.Append(diags...)
+
+	members, diags := ToMemberSetType(ctx, clusterGroup.Members)
+	respDiags.Append(diags...)
+
 	if respDiags.HasError() {
 		return respDiags
 	}
@@ -262,6 +305,26 @@ func (r *ClusterGroupResource) SyncState(ctx context.Context, tfState *tfsdk.Sta
 	m.Name = types.StringValue(clusterGroup.Name)
 	m.Description = types.StringValue(clusterGroup.Description)
 	m.Config = config
+	m.Members = members
 
 	return tfState.Set(ctx, &m)
+}
+
+// ToMemberSet converts members of type types.Set into []string.
+func ToMemberSet(ctx context.Context, memberList types.Set) ([]string, diag.Diagnostics) {
+	members := make([]string, 0, len(memberList.Elements()))
+	diags := memberList.ElementsAs(ctx, &members, false)
+
+	return members, diags
+}
+
+// ToMemberSetType converts []string into members of type types.Set.
+func ToMemberSetType(ctx context.Context, members []string) (types.Set, diag.Diagnostics) {
+	nilList := types.SetNull(types.StringType)
+
+	if len(members) == 0 {
+		return nilList, nil
+	}
+
+	return types.SetValueFrom(ctx, types.StringType, members)
 }
