@@ -8,6 +8,7 @@ Manages an Incus cluster group.
 resource "incus_cluster_group" "amd64" {
   name        = "amd64"
   description = "x86-64 nodes"
+  members     = ["node-1", "node-2", "node-3"]
 }
 ```
 
@@ -22,6 +23,8 @@ resource "incus_cluster_group" "amd64" {
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
+
+* `members` - *Optional* - List of cluster group members.
 
 ## Attribute Reference
 
