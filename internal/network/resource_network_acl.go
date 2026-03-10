@@ -163,7 +163,9 @@ func ruleAttributes() map[string]schema.Attribute {
 			Computed: true,
 		},
 		"state": schema.StringAttribute{
-			Required: true,
+			Optional: true,
+			Computed: true,
+			Default:  stringdefault.StaticString("enabled"),
 			Validators: []validator.String{
 				stringvalidator.OneOf("enabled", "disabled", "logged"),
 			},
