@@ -6,11 +6,11 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
 	github.com/hashicorp/go-version v1.8.0
-	github.com/hashicorp/terraform-plugin-framework v1.18.0
+	github.com/hashicorp/terraform-plugin-framework v1.19.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0
-	github.com/hashicorp/terraform-plugin-go v0.30.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.39.0
-	github.com/hashicorp/terraform-plugin-testing v1.14.0
+	github.com/hashicorp/terraform-plugin-go v0.31.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.0
+	github.com/hashicorp/terraform-plugin-testing v1.15.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/lxc/incus/v6 v6.22.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -118,7 +118,7 @@ require (
 	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
-	google.golang.org/grpc v1.79.1 // indirect
+	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
