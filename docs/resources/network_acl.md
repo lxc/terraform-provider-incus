@@ -71,7 +71,7 @@ resource "incus_network_acl" "acl1" {
 
 The network ACL rule supports:
 
-* `action` - **Required** - Action to take for matching traffic , must be one of allow, allow-stateless, drop, reject
+* `action` - **Required** - Action to take for matching traffic, must be one of allow, allow-stateless, drop, reject
 
 * `description` - *Optional* - Description of the network ACL rule.
 
@@ -89,7 +89,7 @@ The network ACL rule supports:
 
 * `source_port` - *Optional* - If protocol is `udp` or tcp, then a comma-separated list of ports or port ranges (start-end inclusive), or empty for any
 
-* `state` - *Optional* - State of the rule (enabled, disabled or logged), defaulting to enabled if not specified
+* `state` - **Required** - State of the rule, must be one of enabled, disabled or logged
 
 ## Importing
 
