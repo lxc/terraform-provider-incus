@@ -67,7 +67,7 @@ resource "incus_network_lb" "load_balancer" {
 
 * `port` - *Optional* - Load balancer's port definition. See reference below.
 
-* `config` - *Optional* - Map of key/value pairs (load balancer's currently support only `user.*` keys).
+* `config` - *Optional* - Map of key/value pairs [network load balancer config settings](https://linuxcontainers.org/incus/docs/main/howto/network_load_balancers/#configuration-options) 
 
 * `project` - *Optional* - Name of the project where the load balancer will be spawned.
 
