@@ -342,7 +342,7 @@ func (r StoragePoolResource) SyncState(ctx context.Context, tfState *tfsdk.State
 
 // ComputedKeys returns list of computed config keys.
 func (StoragePoolModel) ComputedKeys(driver string) []string {
-	var keys []string
+	keys := make([]string, 0, 1)
 
 	switch driver {
 	case "dir":
