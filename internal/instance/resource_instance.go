@@ -1374,10 +1374,20 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	// does not match the expected one.
 	m.Running = types.BoolValue(isInstanceRunning(*instanceState))
 
-	m.Target = types.StringValue("")
-	if server.IsClustered() || instance.Location != "none" {
-		m.Target = types.StringValue(instance.Location)
+	plannedTarget := m.Target.ValueString()
+	actualTarget := ""
+	clustered := server.IsClustered()
+
+	// Default behavior: use instance location when appropriate.
+	if clustered || instance.Location != "none" {
+		actualTarget = instance.Location
 	}
+	// In clustered mode, an explicit group target (e.g. "@amd64") wins.
+	if clustered && strings.HasPrefix(plannedTarget, "@") {
+		actualTarget = plannedTarget
+	}
+
+	m.Target = types.StringValue(actualTarget)
 
 	return tfState.Set(ctx, &m)
 }
