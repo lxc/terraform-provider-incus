@@ -338,6 +338,7 @@ func (r NetworkResource) ImportState(ctx context.Context, req resource.ImportSta
 	meta := common.ImportMetadata{
 		ResourceName:   "network",
 		RequiredFields: []string{"name"},
+		AllowedOptions: []string{"target"},
 	}
 
 	fields, diag := meta.ParseImportID(req.ID)
@@ -387,6 +388,8 @@ func (r NetworkResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 	// by the API also for requests using target.
 	if m.Target.IsUnknown() || m.Target.IsNull() {
 		m.Description = types.StringValue(network.Description)
+	} else {
+		m.Description = types.StringValue("")
 	}
 
 	if respDiags.HasError() {
