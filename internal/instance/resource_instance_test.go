@@ -776,6 +776,116 @@ func TestAccInstance_fileUploadSource(t *testing.T) {
 	})
 }
 
+func TestAccInstance_fileDriftDetection_hash(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.mode", "0644"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.content", "Hello, World!\n"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.target_path", "/foo/bar.txt"),
+					// Verify content_hash is set.
+					resource.TestCheckResourceAttrSet("incus_instance.instance1", "file.0.content_hash"),
+				),
+			},
+			{
+				// Modify the file out-of-band and verify drift is detected.
+				PreConfig: acctest.ModifyInstanceFileContent(t, instanceName, "/foo/bar.txt", "Modified content\n"),
+				Config:    testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					// After refresh, the content_hash should differ from original,
+					// causing Terraform to detect drift.
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_fileDriftDetection_contentCompared(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_fileDriftContentCompared(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.content", "Hello, World!\n"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.content_compared", "true"),
+					resource.TestCheckResourceAttrSet("incus_instance.instance1", "file.0.content_hash"),
+				),
+			},
+			{
+				// Modify the file out-of-band and verify drift is detected.
+				PreConfig:          acctest.ModifyInstanceFileContent(t, instanceName, "/foo/bar.txt", "Modified content\n"),
+				Config:             testAccInstance_fileDriftContentCompared(instanceName),
+				ExpectNonEmptyPlan: true,
+				// Since content_compared is true, the plan should show the
+				// content attribute changing from "Hello, World!\n" to "Modified content\n".
+			},
+		},
+	})
+}
+
+func TestAccInstance_filePermissionDriftDetection(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.mode", "0644"),
+				),
+			},
+			{
+				// Change file permissions out-of-band.
+				PreConfig: acctest.ModifyInstanceFilePermissions(t, instanceName, "/foo/bar.txt", "0777"),
+				Config:    testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					// After refresh, the mode should be updated to reflect the
+					// out-of-band change (0777), causing drift detection.
+				),
+			},
+		},
+	})
+}
+
+func testAccInstance_fileDriftContentCompared(name string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  file {
+    content            = "Hello, World!\n"
+    target_path        = "/foo/bar.txt"
+    mode               = "0644"
+    create_directories = true
+    content_compared   = true
+  }
+}
+	`, name, acctest.TestImage)
+}
+
 func TestAccInstance_configLimits(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 

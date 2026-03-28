@@ -1,13 +1,17 @@
 package acctest
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	incus "github.com/lxc/incus/v6/client"
 
 	"github.com/lxc/terraform-provider-incus/internal/utils"
 )
@@ -228,4 +232,75 @@ func TestCheckResourceAttrInLookup(name string, key string, lookup map[string]st
 
 		return nil
 	})
+}
+
+// ModifyInstanceFileContent returns a PreConfig function that modifies a file
+// on the given instance out-of-band using the Incus client.
+// This is useful for testing drift detection.
+func ModifyInstanceFileContent(t *testing.T, instanceName, filePath, content string) func() {
+	t.Helper()
+	return func() {
+		server, err := testProvider().InstanceServer("", "", "")
+		if err != nil {
+			t.Fatalf("Failed to get Incus client: %v", err)
+		}
+
+		args := incus.InstanceFileArgs{
+			Type:      "file",
+			Mode:      0o644,
+			UID:       0,
+			GID:       0,
+			WriteMode: "overwrite",
+			Content:   strings.NewReader(content),
+		}
+
+		err = server.CreateInstanceFile(instanceName, filePath, args)
+		if err != nil {
+			t.Fatalf("Failed to modify file %q on instance %q: %v", filePath, instanceName, err)
+		}
+	}
+}
+
+// ModifyInstanceFilePermissions returns a PreConfig function that changes
+// file permissions on the given instance out-of-band.
+// This is useful for testing permission drift detection.
+func ModifyInstanceFilePermissions(t *testing.T, instanceName, filePath, mode string) func() {
+	t.Helper()
+	return func() {
+		server, err := testProvider().InstanceServer("", "", "")
+		if err != nil {
+			t.Fatalf("Failed to get Incus client: %v", err)
+		}
+
+		parsedMode, err := strconv.ParseUint(mode, 8, 32)
+		if err != nil {
+			t.Fatalf("Failed to parse mode %q: %v", mode, err)
+		}
+
+		// Read the file content first.
+		reader, _, err := server.GetInstanceFile(instanceName, filePath)
+		if err != nil {
+			t.Fatalf("Failed to read file %q: %v", filePath, err)
+		}
+		content, err := io.ReadAll(reader)
+		reader.Close()
+		if err != nil {
+			t.Fatalf("Failed to read file content: %v", err)
+		}
+
+		// Re-upload with new permissions.
+		args := incus.InstanceFileArgs{
+			Type:      "file",
+			Mode:      int(parsedMode),
+			UID:       0,
+			GID:       0,
+			WriteMode: "overwrite",
+			Content:   bytes.NewReader(content),
+		}
+
+		err = server.CreateInstanceFile(instanceName, filePath, args)
+		if err != nil {
+			t.Fatalf("Failed to re-upload file %q with new permissions: %v", filePath, err)
+		}
+	}
 }
