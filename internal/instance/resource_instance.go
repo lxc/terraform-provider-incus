@@ -465,6 +465,23 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Computed: true,
 							Default:  booldefault.StaticBool(false),
 						},
+
+						// ContentHash is a computed SHA256 hash of the file content
+						// used for drift detection. It is set during Create/Update
+						// and compared during Read to detect out-of-band changes.
+						"content_hash": schema.StringAttribute{
+							Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+
+						// ContentCompared enables reading actual file content back
+						// into state during Read. Use only for small text files
+						// where visible plan diffs are desired.
+						"content_compared": schema.BoolAttribute{
+							Optional: true,
+						},
 					},
 				},
 			},
@@ -796,13 +813,22 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		for _, f := range files {
-			err := common.InstanceFileUpload(server, instanceName, f)
+		for k, f := range files {
+			err := common.InstanceFileUpload(server, instanceName, &f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
 			}
+			files[k] = f
 		}
+
+		// Update plan files with computed content hashes.
+		updatedFiles, diags := common.ToFileSetType(ctx, files)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Files = updatedFiles
 	}
 
 	// Run exec commands.
@@ -869,6 +895,12 @@ func (r InstanceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, state)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Detect file drift by reading files back from the instance.
+	r.detectFileDrift(ctx, &resp.State, server, state.Name.ValueString())
 }
 
 // Update updates the instance in the following order:
@@ -1015,11 +1047,12 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		oldFile, exists := oldFiles[k]
 
 		if !exists {
-			err := common.InstanceFileUpload(server, instanceName, newFile)
+			err := common.InstanceFileUpload(server, instanceName, &newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 			continue
 		}
 
@@ -1036,11 +1069,12 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 				return
 			}
 
-			err = common.InstanceFileUpload(server, instanceName, newFile)
+			err = common.InstanceFileUpload(server, instanceName, &newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to instance %q", instanceName), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 		}
 	}
 
@@ -1132,6 +1166,14 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 		}
 	}
+
+	// Update plan files with computed content hashes from uploads.
+	updatedFiles, diags := common.ToFileSetType(ctx, newFiles)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Files = updatedFiles
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)
@@ -1407,6 +1449,60 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.Target = types.StringValue(actualTarget)
 
 	return tfState.Set(ctx, &m)
+}
+
+// detectFileDrift reads files from the instance and updates state with
+// current content hashes to detect out-of-band changes.
+// This is called only during Read (refresh), not during Create/Update.
+func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, instanceName string) {
+	var m InstanceModel
+	diags := tfState.Get(ctx, &m)
+	if diags.HasError() {
+		return
+	}
+
+	if m.Files.IsNull() || m.Files.IsUnknown() {
+		return
+	}
+
+	// Only detect drift when the instance is running.
+	instanceState, _, err := server.GetInstanceState(instanceName)
+	if err != nil || !isInstanceRunning(*instanceState) {
+		return
+	}
+
+	fileMap, diags := common.ToFileMap(ctx, m.Files)
+	if diags.HasError() {
+		return
+	}
+
+	for targetPath, file := range fileMap {
+		remoteContent, _, err := common.InstanceFileRead(server, instanceName, targetPath)
+		if err != nil {
+			// Log warning but don't fail the entire Read.
+			continue
+		}
+
+		// Compute hash of remote content and update state.
+		remoteHash := common.ComputeFileHash(remoteContent)
+		file.ContentHash = types.StringValue(remoteHash)
+
+		// If content_compared is enabled, read actual content into state.
+		if file.ContentCompared.ValueBool() {
+			file.Content = types.StringValue(remoteContent)
+			file.SourcePath = types.StringNull()
+		}
+
+		fileMap[targetPath] = file
+	}
+
+	updatedFiles, diags := common.ToFileSetType(ctx, fileMap)
+	if diags.HasError() {
+		return
+	}
+
+	m.Files = updatedFiles
+	tfState.Set(ctx, &m)
 }
 
 func (r InstanceResource) createInstanceFromImage(ctx context.Context, server incus.InstanceServer, plan InstanceModel) diag.Diagnostics {
