@@ -2,14 +2,18 @@ package common
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
@@ -19,14 +23,16 @@ import (
 )
 
 type InstanceFileModel struct {
-	Content    types.String `tfsdk:"content"`
-	SourcePath types.String `tfsdk:"source_path"`
-	TargetPath types.String `tfsdk:"target_path"`
-	UserID     types.Int64  `tfsdk:"uid"`
-	GroupID    types.Int64  `tfsdk:"gid"`
-	Mode       types.String `tfsdk:"mode"`
-	CreateDirs types.Bool   `tfsdk:"create_directories"`
-	Append     types.Bool   `tfsdk:"append"`
+	Content         types.String `tfsdk:"content"`
+	SourcePath      types.String `tfsdk:"source_path"`
+	TargetPath      types.String `tfsdk:"target_path"`
+	UserID          types.Int64  `tfsdk:"uid"`
+	GroupID         types.Int64  `tfsdk:"gid"`
+	Mode            types.String `tfsdk:"mode"`
+	CreateDirs      types.Bool   `tfsdk:"create_directories"`
+	Append          types.Bool   `tfsdk:"append"`
+	ContentHash     types.String `tfsdk:"content_hash"`
+	ContentCompared types.Bool   `tfsdk:"content_compared"`
 }
 
 // ToFileMap converts files from types.Set into map[string]IncusFileModel.
@@ -50,6 +56,21 @@ func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileM
 	return fileMap, diags
 }
 
+// fileTypeAttrTypes defines the attribute types for the file nested block.
+// This must match the InstanceFileModel struct fields and the schema definition.
+var fileTypeAttrTypes = map[string]attr.Type{
+	"content":            types.StringType,
+	"source_path":        types.StringType,
+	"target_path":        types.StringType,
+	"uid":                types.Int64Type,
+	"gid":                types.Int64Type,
+	"mode":               types.StringType,
+	"create_directories": types.BoolType,
+	"append":             types.BoolType,
+	"content_hash":       types.StringType,
+	"content_compared":   types.BoolType,
+}
+
 // ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
 func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (types.Set, diag.Diagnostics) {
 	files := make([]InstanceFileModel, 0, len(fileMap))
@@ -57,7 +78,7 @@ func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (t
 		files = append(files, v)
 	}
 
-	return types.SetValueFrom(ctx, types.ObjectType{}, files)
+	return types.SetValueFrom(ctx, types.ObjectType{AttrTypes: fileTypeAttrTypes}, files)
 }
 
 // InstanceFileDelete deletes a file from an instance.
@@ -71,7 +92,8 @@ func InstanceFileDelete(server incus.InstanceServer, instanceName string, target
 }
 
 // InstanceFileUpload uploads a file to an instance.
-func InstanceFileUpload(server incus.InstanceServer, instanceName string, file InstanceFileModel) error {
+// It computes a SHA256 hash of the uploaded content and sets it on the model.
+func InstanceFileUpload(server incus.InstanceServer, instanceName string, file *InstanceFileModel) error {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
 
@@ -105,8 +127,12 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 		args.WriteMode = "overwrite"
 	}
 
+	// Hash will be computed from the content being uploaded.
+	var contentHash string
+
 	// If content was specified, read the string.
 	if content != "" {
+		contentHash = ComputeFileHash(content)
 		args.Content = strings.NewReader(content)
 	}
 
@@ -125,7 +151,13 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 			err = errors.Join(err, f.Close())
 		}(f)
 
-		args.Content = f
+		// Read file content for hashing, then wrap in a reader for upload.
+		fileBytes, err := io.ReadAll(f)
+		if err != nil {
+			return fmt.Errorf("Unable to read source file content: %v", err)
+		}
+		contentHash = ComputeFileHash(string(fileBytes))
+		args.Content = strings.NewReader(string(fileBytes))
 	}
 
 	if file.CreateDirs.ValueBool() {
@@ -139,6 +171,9 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 	if err != nil {
 		return fmt.Errorf("Could not upload file %q: %v", targetPath, err)
 	}
+
+	// Store the computed hash on the model.
+	file.ContentHash = types.StringValue(contentHash)
 
 	return nil
 }
@@ -205,7 +240,7 @@ func VolumeFileDelete(server incus.InstanceServer, pool, volumeType, volumeName,
 }
 
 // VolumeFileUpload uploads a file to a storage volume.
-func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file InstanceFileModel) error {
+func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file *InstanceFileModel) error {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
 
@@ -239,8 +274,12 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 		args.WriteMode = "overwrite"
 	}
 
+	// Hash will be computed from the content being uploaded.
+	var contentHash string
+
 	// If content was specified, read the string.
 	if content != "" {
+		contentHash = ComputeFileHash(content)
 		args.Content = strings.NewReader(content)
 	}
 
@@ -259,7 +298,13 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 			err = errors.Join(err, f.Close())
 		}(f)
 
-		args.Content = f
+		// Read file content for hashing, then wrap in a reader for upload.
+		fileBytes, err := io.ReadAll(f)
+		if err != nil {
+			return fmt.Errorf("Unable to read source file content: %v", err)
+		}
+		contentHash = ComputeFileHash(string(fileBytes))
+		args.Content = strings.NewReader(string(fileBytes))
 	}
 
 	if file.CreateDirs.ValueBool() {
@@ -273,6 +318,9 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 	if err != nil {
 		return fmt.Errorf("Could not upload file %q: %v", targetPath, err)
 	}
+
+	// Store the computed hash on the model.
+	file.ContentHash = types.StringValue(contentHash)
 
 	return nil
 }
@@ -329,6 +377,15 @@ func volumeRecursiveMkdir(server incus.InstanceServer, pool, volumeType, volumeN
 }
 
 func HasFileContentChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
+	// If both files have content hashes, compare those first.
+	hasNewHash := !newFile.ContentHash.IsNull() && !newFile.ContentHash.IsUnknown()
+	hasOldHash := !oldFile.ContentHash.IsNull() && !oldFile.ContentHash.IsUnknown()
+
+	if hasNewHash && hasOldHash {
+		return newFile.ContentHash.ValueString() != oldFile.ContentHash.ValueString()
+	}
+
+	// Fall back to content/source_path comparison.
 	hasNewContent := !newFile.Content.IsNull()
 	hasOldContent := !oldFile.Content.IsNull()
 	hasNewSourcePath := !newFile.SourcePath.IsNull()
@@ -350,4 +407,33 @@ func HasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileMod
 	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
 		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
 		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
+}
+
+// ComputeFileHash computes a SHA256 hash of content and returns the hex-encoded string.
+func ComputeFileHash(content string) string {
+	h := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(h[:])
+}
+
+// FileModeToString converts an integer file mode to an octal permission string (e.g., 493 -> "0755").
+// It masks to permission bits only (0o777) since the server response includes file type bits.
+func FileModeToString(mode int) string {
+	return fmt.Sprintf("%04o", mode&0o777)
+}
+
+// InstanceFileRead reads a file's content and metadata from an instance.
+// Returns the file content as a string and the file response metadata.
+func InstanceFileRead(server incus.InstanceServer, instanceName string, targetPath string) (string, *incus.InstanceFileResponse, error) {
+	reader, fileResp, err := server.GetInstanceFile(instanceName, targetPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+	defer reader.Close()
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read content of file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+
+	return string(content), fileResp, nil
 }
