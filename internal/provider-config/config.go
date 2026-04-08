@@ -240,7 +240,7 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 		return fmt.Errorf("Unable to parse address for remote %q: %v", remote.Name, err)
 	}
 
-	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: "incus"}
+	incusRemote := incus_config.Remote{Addr: remote.Address, AuthType: remote.AuthenticationType, Protocol: "incus"}
 	p.setIncusConfigRemote(remote.Name, incusRemote)
 
 	if parsedURL.Scheme == "https" || parsedURL.Port() != "" {
