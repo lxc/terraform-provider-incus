@@ -150,11 +150,25 @@ the actual network:
 resource "incus_network" "my_network_node1" {
   name   = "my_network"
   target = "node1"
+  config = {
+    "ipv4.address" = "10.150.19.1/24"
+    "ipv4.nat"     = "true"
+    "ipv6.address" = "fd42:474b:622d:259d::1/64"
+    "ipv6.nat"     = "true"
+    "parent"       = "eth0"
+  }
 }
 
 resource "incus_network" "my_network_node2" {
   name   = "my_network"
   target = "node2"
+  config = {
+    "ipv4.address" = "10.150.19.1/24"
+    "ipv4.nat"     = "true"
+    "ipv6.address" = "fd42:474b:622d:259d::1/64"
+    "ipv6.nat"     = "true"
+    "parent"       = "eth1"
+  }
 }
 
 resource "incus_network" "my_network" {
@@ -189,7 +203,7 @@ for more details on how to create a network in clustered mode.
   is created.
 
 * `config` - *Optional* - Map of key/value pairs of
-  [network config settings](https://linuxcontainers.org/incus/docs/main/networks/).
+  [network config settings](https://linuxcontainers.org/incus/docs/main/networks/). The `config` should be identical for all resources referencing the same clustered network, only [members keys](https://linuxcontainers.org/incus/docs/main/howto/cluster_config_networks/#how-to-configure-networks-for-a-cluster) may differ.
 
 * `project` - *Optional* - Name of the project where the network will be created.
 
@@ -214,8 +228,7 @@ Import ID syntax: `[<remote>:][<project>/]<name>`
 * `<remote>` - *Optional* - Remote name.
 * `<project>` - *Optional* - Project name.
 * `<name>` - **Required** - Network name.
-
--> Clustered networks cannot be imported.
+* `target=<member>` - *Optional* - Cluster node name.
 
 ### Import example
 
@@ -235,6 +248,52 @@ resource "incus_network" "mynet" {
 
 import {
   to = incus_network.mynet
+  id = "proj/net1"
+}
+```
+
+### Cluster import example
+
+Example using terraform import command:
+
+```shell
+terraform import incus_network.my_network_node1 proj/net1,target=node1
+terraform import incus_network.my_network_node2 proj/net1,target=node2
+terraform import incus_network.my_network proj/net1
+```
+
+Example using the import block (only available in Terraform v1.5.0 and later):
+
+```hcl
+resource "incus_network" "my_network_node1" {
+  name    = "net1"
+  project = "proj"
+  target = "node1"
+}
+
+import {
+  to = incus_network.my_network_node1
+  id = "proj/net1,target=node1"
+}
+
+resource "incus_network" "my_network_node2" {
+  name    = "net1"
+  project = "proj"
+  target = "node2"
+}
+
+import {
+  to = incus_network.my_network_node2 
+  id = "proj/net1,target=node2"
+}
+
+resource "incus_network" "my_network" {
+  name    = "net1"
+  project = "proj"
+}
+
+import {
+  to = incus_network.my_network
   id = "proj/net1"
 }
 ```
