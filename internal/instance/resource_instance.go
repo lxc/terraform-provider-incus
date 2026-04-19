@@ -750,9 +750,9 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	instanceName := plan.Name.ValueString()
 
-	// Partially update state, to make terraform aware of
-	// an existing instance.
-	diags = resp.State.SetAttribute(ctx, path.Root("name"), instanceName)
+	// Update Terraform state early to ensure the instance can still be
+	// reconciled or destroyed if subsequent wait operations fail.
+	diags = r.SyncState(ctx, &resp.State, server, plan)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
