@@ -265,6 +265,33 @@ func TestAccInstance_execTimeout(t *testing.T) {
 	})
 }
 
+func TestAccInstance_waitForFailureKeepsStateInProject(t *testing.T) {
+	projectName := petname.Generate(2, "-")
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccInstance_waitForDelayInProject(projectName, instanceName, "not-a-duration"),
+				ExpectError: regexp.MustCompile("Failed to wait for instance"),
+			},
+			{
+				Config: testAccInstance_waitForDelayInProject(projectName, instanceName, "1s"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_project.project1", "name", projectName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "project", projectName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "delay"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.delay", "1s"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_container(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -2148,6 +2175,32 @@ resource "incus_instance" "instance1" {
 	}
 }
 	`, name, acctest.TestImage, delay)
+}
+
+func testAccInstance_waitForDelayInProject(projectName, instanceName, delay string) string {
+	return fmt.Sprintf(`
+resource "incus_project" "project1" {
+  name          = "%s"
+  description   = "Terraform provider test project"
+  force_destroy = true
+
+  config = {
+	"features.images"   = true
+	"features.profiles" = false
+  }
+}
+
+resource "incus_instance" "instance1" {
+  name    = "%s"
+  image   = "%s"
+  project = incus_project.project1.name
+
+	wait_for {
+		type  = "delay"
+		delay = "%s"
+	}
+}
+	`, projectName, instanceName, acctest.TestImage, delay)
 }
 
 func testAccInstance_waitForIPv4(networkName, instanceName string) string {
