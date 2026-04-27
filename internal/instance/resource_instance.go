@@ -860,8 +860,9 @@ func (r InstanceResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 // Update updates the instance in the following order:
-// - Ensure instance state (stopped/running).
+// - Stop the instance if its desired state is stopped.
 // - Update configuration (config, devices, profiles).
+// - Start the instance if its desired state is running.
 // - Upload files.
 // - Run exec commands.
 func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -895,24 +896,8 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// First ensure the desired state of the instance (stopped/running).
-	// This ensures we fail fast if instance runs into an issue.
-	if plan.Running.ValueBool() && !isInstanceOperational(*instanceState) {
-		diag := startInstance(ctx, server, instanceName)
-		if diag != nil {
-			resp.Diagnostics.Append(diag)
-			return
-		}
-
-		// If instance is freshly started, we also take the wait for configurations into account.
-		if len(plan.WaitForConfigs.Elements()) > 0 {
-			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
-			if diags != nil {
-				resp.Diagnostics.Append(diags...)
-				return
-			}
-		}
-	} else if !plan.Running.ValueBool() && !isInstanceStopped(*instanceState) {
+	// Stop before applying configuration changes if the desired state is stopped.
+	if !plan.Running.ValueBool() && !isInstanceStopped(*instanceState) {
 		// Stop the instance gracefully.
 		_, diag := stopInstance(ctx, server, instanceName, false)
 		if diag != nil {
@@ -966,6 +951,26 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to update instance %q", instance.Name), err.Error())
 		return
+	}
+
+	// Start after applying configuration changes if the desired state is running.
+	// Some updates, such as adding a TPM device to a VM, require the instance to
+	// remain stopped while the change is applied.
+	if plan.Running.ValueBool() && !isInstanceOperational(*instanceState) {
+		diag := startInstance(ctx, server, instanceName)
+		if diag != nil {
+			resp.Diagnostics.Append(diag)
+			return
+		}
+
+		// If instance is freshly started, we also take the wait for configurations into account.
+		if len(plan.WaitForConfigs.Elements()) > 0 {
+			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
+			if diags != nil {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+		}
 	}
 
 	oldFiles, diags := common.ToFileMap(ctx, state.Files)
