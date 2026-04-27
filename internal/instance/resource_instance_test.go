@@ -644,6 +644,34 @@ func TestAccInstance_device(t *testing.T) {
 	})
 }
 
+func TestAccInstance_devicePropertiesNull(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_devicePropertiesNull(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.name", "shared"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.type", "disk"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.source", "/tmp"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.path", "/tmp/shared"),
+				),
+			},
+			{
+				Config:             testAccInstance_devicePropertiesNull(instanceName),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccInstance_addDevice(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -1712,6 +1740,30 @@ resource "incus_instance" "instance1" {
     properties = {
       source = "/tmp"
       path   = "/tmp/shared2"
+    }
+  }
+}
+	`, name, acctest.TestImage)
+}
+
+func testAccInstance_devicePropertiesNull(name string) string {
+	return fmt.Sprintf(`
+variable "readonly" {
+  type    = string
+  default = null
+}
+
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  device {
+    name = "shared"
+    type = "disk"
+    properties = {
+      source   = "/tmp"
+      path     = "/tmp/shared"
+      readonly = var.readonly
     }
   }
 }
