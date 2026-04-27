@@ -334,6 +334,45 @@ func TestAccInstance_virtualMachine(t *testing.T) {
 	})
 }
 
+func TestAccInstance_virtualMachineAddTpmWhileStopped(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckVirtualization(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_started(instanceName, "virtual-machine"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "virtual-machine"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+				),
+			},
+			{
+				Config: testAccInstance_stopped(instanceName, "virtual-machine"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Stopped"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "running", "false"),
+				),
+			},
+			{
+				Config: testAccInstance_virtualMachineWithTpm(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "running", "true"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.#", "1"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.name", "tpm"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.type", "tpm"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_virtualMachineNoDevIncus(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -1487,6 +1526,27 @@ resource "incus_instance" "instance1" {
   config = {
     # Alpine images do not support secureboot.
     "security.secureboot" = false
+  }
+}
+	`, name, acctest.TestImage)
+}
+
+func testAccInstance_virtualMachineWithTpm(name string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+  type  = "virtual-machine"
+
+  config = {
+    # Alpine images do not support secureboot.
+    "security.secureboot" = false
+  }
+
+  device {
+    name       = "tpm"
+    type       = "tpm"
+    properties = {}
   }
 }
 	`, name, acctest.TestImage)
