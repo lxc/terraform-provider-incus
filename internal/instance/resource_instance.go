@@ -1345,7 +1345,7 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	profiles, diags := ToProfileListType(ctx, instance.Profiles)
 	respDiags.Append(diags...)
 
-	devices, diags := common.ToDeviceSetType(ctx, instance.Devices)
+	devices, diags := common.ToDeviceSetTypePreservingNulls(ctx, instance.Devices, m.Devices)
 	respDiags.Append(diags...)
 
 	if respDiags.HasError() {

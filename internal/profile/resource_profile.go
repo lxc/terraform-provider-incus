@@ -391,7 +391,7 @@ func (r ProfileResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig(profile.Config), m.Config)
 	respDiags.Append(diags...)
 
-	devices, diags := common.ToDeviceSetType(ctx, profile.Devices)
+	devices, diags := common.ToDeviceSetTypePreservingNulls(ctx, profile.Devices, m.Devices)
 	respDiags.Append(diags...)
 
 	m.Name = types.StringValue(profile.Name)
