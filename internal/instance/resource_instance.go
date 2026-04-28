@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -103,6 +104,10 @@ func (m WaitForModel) IsIPv6() bool {
 
 func (m WaitForModel) IsReady() bool {
 	return m.Type.ValueString() == "ready"
+}
+
+func (m WaitForModel) IsCloudInit() bool {
+	return m.Type.ValueString() == "cloud-init"
 }
 
 // InstanceResource represent Incus instance resource.
@@ -372,7 +377,7 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						"type": schema.StringAttribute{
 							Required: true,
 							Validators: []validator.String{
-								stringvalidator.OneOf("agent", "delay", "ipv4", "ipv6", "ready"),
+								stringvalidator.OneOf("agent", "cloud-init", "delay", "ipv4", "ipv6", "ready"),
 							},
 						},
 						"delay": schema.StringAttribute{
@@ -614,13 +619,20 @@ func validateWaitFor(ctx context.Context, config InstanceModel, resp *resource.V
 	}
 
 	for _, waitFor := range waitForList {
-		if waitFor.IsAgent() || waitFor.IsReady() {
+		if waitFor.IsAgent() || waitFor.IsCloudInit() || waitFor.IsReady() {
 			if !waitFor.Nic.IsNull() {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
-					`"nic" can only be set when type is set to "ipv4" or "ipv6.`,
+					`"nic" can only be set when type is set to "ipv4" or "ipv6".`,
 				)
 			}
+		}
+
+		if waitFor.IsCloudInit() && !waitFor.Delay.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				`"delay" can only be set when type is set to "delay".`,
+			)
 		}
 
 		if waitFor.IsAgent() && (config.Type.IsNull() || config.IsContainer()) {
@@ -641,7 +653,7 @@ func validateWaitFor(ctx context.Context, config InstanceModel, resp *resource.V
 			if !waitFor.Nic.IsNull() {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
-					`"nic" can only be set when type is set to "ipv4" or "ipv6.`,
+					`"nic" can only be set when type is set to "ipv4" or "ipv6".`,
 				)
 			}
 
@@ -768,7 +780,7 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 
 		// Take the wait_for configurations into account.
 		if len(plan.WaitForConfigs.Elements()) > 0 {
-			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
+			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs, plan.IsVirtualMachine())
 			if diags != nil {
 				resp.Diagnostics.Append(diags...)
 				return
@@ -965,7 +977,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 		// If instance is freshly started, we also take the wait for configurations into account.
 		if len(plan.WaitForConfigs.Elements()) > 0 {
-			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs)
+			diags := waitFor(ctx, server, instanceName, plan.WaitForConfigs, plan.IsVirtualMachine())
 			if diags != nil {
 				resp.Diagnostics.Append(diags...)
 				return
@@ -1892,7 +1904,7 @@ func stopInstance(ctx context.Context, server incus.InstanceServer, instanceName
 // waitFor waits for the instance with the given name to reach the desired
 // state. It returns an error if the instance does not reach the desired
 // state within the given timeout.
-func waitFor(ctx context.Context, server incus.InstanceServer, instanceName string, waitFor types.Set) diag.Diagnostics {
+func waitFor(ctx context.Context, server incus.InstanceServer, instanceName string, waitFor types.Set, isVirtualMachine bool) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	waitForMap, diags := ToWaitForConfigMap(ctx, waitFor)
@@ -1904,6 +1916,8 @@ func waitFor(ctx context.Context, server incus.InstanceServer, instanceName stri
 		switch waitForModelType {
 		case "agent":
 			diags = waitForInstanceAgent(ctx, server, instanceName)
+		case "cloud-init":
+			diags = waitForInstanceCloudInit(ctx, server, instanceName, isVirtualMachine)
 		case "delay":
 			duration := waitForModel.Delay.ValueString()
 			diags = waitForInstanceWithDelay(ctx, server, instanceName, duration)
@@ -2033,6 +2047,53 @@ func waitForInstanceToBeReady(ctx context.Context, server incus.InstanceServer, 
 	if err != nil {
 		var diags diag.Diagnostics
 		diags.AddError(fmt.Sprintf("Failed to wait for instance %q to be ready", instanceName), err.Error())
+		return diags
+	}
+
+	return nil
+}
+
+type cloudInitStatus struct {
+	Status string   `json:"status"`
+	Errors []string `json:"errors"`
+}
+
+// waitForInstanceCloudInit waits for cloud-init to finish inside an instance.
+func waitForInstanceCloudInit(ctx context.Context, server incus.InstanceServer, instanceName string, isVirtualMachine bool) diag.Diagnostics {
+	if isVirtualMachine {
+		diags := waitForInstanceAgent(ctx, server, instanceName)
+		if diags.HasError() {
+			return diags
+		}
+	}
+
+	execConfig := common.InstanceExecConfig{
+		Command: []string{"cloud-init", "status", "--wait", "--format", "json"},
+	}
+
+	stdout, stderr, err := common.RunInstanceExec(ctx, server, instanceName, execConfig)
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError(
+			fmt.Sprintf("Failed to wait for cloud-init in instance %q", instanceName),
+			formatExecError(err, stdout, stderr),
+		)
+		return diags
+	}
+
+	var status cloudInitStatus
+	if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+		return nil
+	}
+
+	if status.Status == "error" || len(status.Errors) > 0 {
+		message := fmt.Sprintf("cloud-init status: %s", status.Status)
+		if len(status.Errors) > 0 {
+			message = fmt.Sprintf("%s\nerrors: %s", message, strings.Join(status.Errors, "; "))
+		}
+
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Cloud-init failed in instance %q", instanceName), message)
 		return diags
 	}
 
