@@ -176,6 +176,20 @@ resource "incus_instance" "instance1" {
 }
 ```
 
+## Example of waiting for cloud-init to complete
+
+```hcl
+resource "incus_instance" "instance1" {
+  project = "default"
+  name    = "instance1"
+  image   = "images:ubuntu/24.04/cloud"
+
+  wait_for {
+    type = "cloud-init"
+  }
+}
+```
+
 ## Example of waiting for a certain time period
 
 ```hcl
@@ -294,7 +308,7 @@ The `source_instance` block supports:
 
 The `wait_for` block supports:
 
-* `type` - **Required** - Type for what should be waited for. Can be `agent`, `delay`, `ipv4`, `ipv6` or `ready`.
+* `type` - **Required** - Type for what should be waited for. Can be `agent`, `cloud-init`, `delay`, `ipv4`, `ipv6` or `ready`.
 
 * `delay` - *Optional* - Delay time that should be waited for when type is `delay`, e.g. `30s`.
 
