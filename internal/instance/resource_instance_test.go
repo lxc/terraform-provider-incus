@@ -1334,6 +1334,48 @@ func TestAccInstance_waitForDelay(t *testing.T) {
 	})
 }
 
+func TestAccInstance_waitForCloudInitContainer(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForCloudInit(instanceName, "container"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "cloud-init"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccInstance_waitForCloudInitVM(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckVirtualization(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_waitForCloudInit(instanceName, "virtual-machine"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "type", "virtual-machine"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "wait_for.0.type", "cloud-init"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_waitForIPv4(t *testing.T) {
 	networkName := petname.Generate(1, "-")
 	instanceName := petname.Generate(2, "-")
@@ -2313,6 +2355,24 @@ resource "incus_instance" "instance1" {
 	}
 }
 	`, projectName, instanceName, acctest.TestImage, delay)
+}
+
+func testAccInstance_waitForCloudInit(name string, instanceType string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "images:ubuntu/24.04/cloud"
+  type = "%s"
+
+  config = {
+    "user.user-data" = "#cloud-config\nwrite_files:\n  - path: /tmp/terraform-provider-incus-cloud-init\n    content: ok\n"
+  }
+
+	wait_for {
+		type = "cloud-init"
+	}
+}
+	`, name, instanceType)
 }
 
 func testAccInstance_waitForIPv4(networkName, instanceName string) string {
