@@ -3,6 +3,8 @@ package network
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -371,8 +373,13 @@ func (r NetworkResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 		}
 	}
 
+	resConfig := network.Config
+	if server.IsClustered() && isTargetedNetwork(m) {
+		resConfig = stripClusterWideNetworkConfig(resConfig)
+	}
+
 	// Extract user defined config and merge it with current config state.
-	stateConfig := common.StripConfig(network.Config, m.Config, m.ComputedKeys())
+	stateConfig := common.StripConfig(resConfig, m.Config, m.ComputedKeys())
 
 	// Convert config state into schema type.
 	config, diags := common.ToConfigMapType(ctx, stateConfig, m.Config)
@@ -412,3 +419,40 @@ func (NetworkModel) ComputedKeys() []string {
 		"volatile.",
 	}
 }
+
+// isTargetedNetwork returns true if the network resource is scoped to a target.
+func isTargetedNetwork(m NetworkModel) bool {
+	return !m.Target.IsUnknown() && !m.Target.IsNull() && m.Target.ValueString() != ""
+}
+
+// stripClusterWideNetworkConfig keeps only config keys owned by a targeted clustered network resource.
+func stripClusterWideNetworkConfig(config map[string]string) map[string]string {
+	nodeConfig := make(map[string]string, len(config))
+	for key, value := range config {
+		if isNodeSpecificNetworkConfig(key) {
+			nodeConfig[key] = value
+		}
+	}
+
+	return nodeConfig
+}
+
+// isNodeSpecificNetworkConfig returns true if Incus treats the network config key as node-specific.
+func isNodeSpecificNetworkConfig(key string) bool {
+	if slices.Contains(nodeSpecificNetworkConfigKeys, key) {
+		return true
+	}
+
+	return nodeSpecificNetworkConfigRe.MatchString(key)
+}
+
+// nodeSpecificNetworkConfigKeys lists static network config keys that Incus treats as node-specific.
+var nodeSpecificNetworkConfigKeys = []string{
+	"bgp.ipv4.nexthop",
+	"bgp.ipv6.nexthop",
+	"bridge.external_interfaces",
+	"parent",
+}
+
+// nodeSpecificNetworkConfigRe matches dynamic network config keys that Incus treats as node-specific.
+var nodeSpecificNetworkConfigRe = regexp.MustCompile(`^tunnel\.[^.]+\.(interface|local)$`)
