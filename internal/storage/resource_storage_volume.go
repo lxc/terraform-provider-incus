@@ -255,6 +255,21 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 							Computed: true,
 							Default:  booldefault.StaticBool(false),
 						},
+
+						// ContentHash is a computed SHA256 hash of the file content
+						// used for drift detection.
+						"content_hash": schema.StringAttribute{
+							Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+
+						// ContentCompared enables reading actual file content back
+						// into state during Read.
+						"content_compared": schema.BoolAttribute{
+							Optional: true,
+						},
 					},
 				},
 			},
@@ -422,13 +437,21 @@ func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Contex
 		volumeType := plan.Type.ValueString()
 		volumeName := plan.Name.ValueString()
 
-		for _, f := range files {
-			err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, f)
+		for targetPath, f := range files {
+			_, err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q in pool %q", volumeName, poolName), err.Error())
 				return
 			}
+			files[targetPath] = f
 		}
+
+		updatedFiles, diags := common.ToFileSetType(ctx, files)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		plan.Files = updatedFiles
 	}
 }
 
@@ -503,6 +526,14 @@ func (r StorageVolumeResource) Read(ctx context.Context, req resource.ReadReques
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, state)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	poolName := state.Pool.ValueString()
+	volType := state.Type.ValueString()
+	volName := state.Name.ValueString()
+	r.detectFileDrift(ctx, &resp.State, server, poolName, volType, volName, &resp.Diagnostics)
 }
 
 func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -590,11 +621,12 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 		oldFile, exists := oldFiles[k]
 
 		if !exists {
-			err := common.VolumeFileUpload(server, poolName, volType, volName, newFile)
+			_, err := common.VolumeFileUpload(server, poolName, volType, volName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q", targetResource), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 			continue
 		}
 
@@ -602,8 +634,6 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 		permissionsChanged := common.HasFilePermissionChanged(newFile, oldFile)
 
 		if contentChanged || permissionsChanged {
-			// Delete the old file first otherwise mode and ownership changes
-			// will not be applied.
 			targetPath := newFile.TargetPath.ValueString()
 			err := common.VolumeFileDelete(server, poolName, volType, volName, targetPath)
 			if err != nil {
@@ -611,11 +641,12 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 				return
 			}
 
-			err = common.VolumeFileUpload(server, poolName, volType, volName, newFile)
+			_, err = common.VolumeFileUpload(server, poolName, volType, volName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to volume %q", targetResource), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 		}
 	}
 
@@ -749,4 +780,51 @@ func (StorageVolumeModel) InheritedStoragePoolVolumeKeys(server incus.InstanceSe
 	}
 
 	return inheritedKeys, nil
+}
+
+func (r StorageVolumeResource) detectFileDrift(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, pool, volumeType, volumeName string, respDiags *diag.Diagnostics) {
+	var m StorageVolumeModel
+	diags := tfState.Get(ctx, &m)
+	if diags.HasError() {
+		return
+	}
+
+	if m.Files.IsNull() || m.Files.IsUnknown() {
+		return
+	}
+
+	fileMap, diags := common.ToFileMap(ctx, m.Files)
+	if diags.HasError() {
+		respDiags.Append(diags...)
+		return
+	}
+
+	for targetPath, file := range fileMap {
+		remoteContent, _, err := common.VolumeFileRead(server, pool, volumeType, volumeName, targetPath)
+		if err != nil {
+			respDiags.AddWarning(
+				fmt.Sprintf("Unable to read file %q for drift detection", targetPath),
+				err.Error(),
+			)
+			continue
+		}
+
+		remoteHash := common.ComputeFileHash(remoteContent)
+		file.ContentHash = types.StringValue(remoteHash)
+
+		if file.ContentCompared.ValueBool() {
+			file.Content = types.StringValue(remoteContent)
+		}
+
+		fileMap[targetPath] = file
+	}
+
+	updatedFiles, diags := common.ToFileSetType(ctx, fileMap)
+	if diags.HasError() {
+		respDiags.Append(diags...)
+		return
+	}
+
+	m.Files = updatedFiles
+	tfState.Set(ctx, &m)
 }
