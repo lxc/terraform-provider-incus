@@ -178,12 +178,50 @@ func TestAccNetwork_target(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "name", networkName),
 					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "description", ""), // Since target and description are mutual exclusive, we expect the default value in the state.
 					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "config.bridge.external_interfaces", "nosuchint"),
+					resource.TestCheckNoResourceAttr("incus_network.cluster_network_per_node.0", "config.dns.domain"),
 					acctest.TestCheckResourceAttrInLookup("incus_network.cluster_network_per_node.0", "target", clusterMemberNames),
 
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "name", networkName),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "description", "clustered network description"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "type", "bridge"),
 					resource.TestCheckResourceAttr("incus_network.cluster_network", "config.ipv4.address", "10.150.19.1/24"),
+					resource.TestCheckResourceAttr("incus_network.cluster_network", "config.dns.domain", "example.test"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccNetwork_targetMacvlanVlan(t *testing.T) {
+	networkName := petname.Name()
+
+	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			acctest.PreCheckClustering(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccNetwork_targetMacvlanVlan(networkName),
+				Check: resource.ComposeTestCheckFunc(
+					// This populates `clusterMemberNames` and therefore needs to be executed before the
+					// check using this information.
+					acctest.TestCheckGetClusterMemberNames(t, "data.incus_cluster.test", clusterMemberNames),
+
+					// Since "count" is used to create the cluster_network_per_node resources, each resource
+					// is created the same, so it should be enough to just test one of them.
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "type", "macvlan"),
+					resource.TestCheckResourceAttr("incus_network.cluster_network_per_node.0", "config.parent", "incusbr0"),
+					resource.TestCheckNoResourceAttr("incus_network.cluster_network_per_node.0", "config.vlan"),
+					acctest.TestCheckResourceAttrInLookup("incus_network.cluster_network_per_node.0", "target", clusterMemberNames),
+
+					resource.TestCheckResourceAttr("incus_network.cluster_network", "name", networkName),
+					resource.TestCheckResourceAttr("incus_network.cluster_network", "type", "macvlan"),
+					resource.TestCheckResourceAttr("incus_network.cluster_network", "config.vlan", "400"),
 				),
 			},
 		},
@@ -446,6 +484,44 @@ resource "incus_network" "cluster_network" {
   description = "clustered network description"
   config = {
     "ipv4.address" = "10.150.19.1/24"
+    "dns.domain"   = "example.test"
+  }
+}
+`, networkName)
+}
+
+func testAccNetwork_targetMacvlanVlan(networkName string) string {
+	return fmt.Sprintf(`
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
+}
+
+resource "incus_network" "cluster_network_per_node" {
+  // Unfortunately, the terraform plugin test framework does not support
+  // "for_each", so we need to use "count" as an alternative.
+  count = length(local.member_names)
+
+  name   = "%[1]s"
+  target = local.member_names[count.index]
+  type   = "macvlan"
+
+  config = {
+    parent = "incusbr0"
+  }
+}
+
+resource "incus_network" "cluster_network" {
+  depends_on = [
+    incus_network.cluster_network_per_node,
+  ]
+
+  name = incus_network.cluster_network_per_node[0].name
+  type = "macvlan"
+
+  config = {
+    vlan = 400
   }
 }
 `, networkName)
