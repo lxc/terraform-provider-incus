@@ -2,14 +2,17 @@ package common
 
 import (
 	"context"
-	"errors"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
@@ -19,14 +22,16 @@ import (
 )
 
 type InstanceFileModel struct {
-	Content    types.String `tfsdk:"content"`
-	SourcePath types.String `tfsdk:"source_path"`
-	TargetPath types.String `tfsdk:"target_path"`
-	UserID     types.Int64  `tfsdk:"uid"`
-	GroupID    types.Int64  `tfsdk:"gid"`
-	Mode       types.String `tfsdk:"mode"`
-	CreateDirs types.Bool   `tfsdk:"create_directories"`
-	Append     types.Bool   `tfsdk:"append"`
+	Content         types.String `tfsdk:"content"`
+	SourcePath      types.String `tfsdk:"source_path"`
+	TargetPath      types.String `tfsdk:"target_path"`
+	UserID          types.Int64  `tfsdk:"uid"`
+	GroupID         types.Int64  `tfsdk:"gid"`
+	Mode            types.String `tfsdk:"mode"`
+	CreateDirs      types.Bool   `tfsdk:"create_directories"`
+	Append          types.Bool   `tfsdk:"append"`
+	ContentHash     types.String `tfsdk:"content_hash"`
+	ContentCompared types.Bool   `tfsdk:"content_compared"`
 }
 
 // ToFileMap converts files from types.Set into map[string]IncusFileModel.
@@ -50,6 +55,21 @@ func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileM
 	return fileMap, diags
 }
 
+// fileTypeAttrTypes defines the attribute types for the file nested block.
+// This must match the InstanceFileModel struct fields and the schema definition.
+var fileTypeAttrTypes = map[string]attr.Type{
+	"content":            types.StringType,
+	"source_path":        types.StringType,
+	"target_path":        types.StringType,
+	"uid":                types.Int64Type,
+	"gid":                types.Int64Type,
+	"mode":               types.StringType,
+	"create_directories": types.BoolType,
+	"append":             types.BoolType,
+	"content_hash":       types.StringType,
+	"content_compared":   types.BoolType,
+}
+
 // ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
 func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (types.Set, diag.Diagnostics) {
 	files := make([]InstanceFileModel, 0, len(fileMap))
@@ -57,7 +77,7 @@ func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (t
 		files = append(files, v)
 	}
 
-	return types.SetValueFrom(ctx, types.ObjectType{}, files)
+	return types.SetValueFrom(ctx, types.ObjectType{AttrTypes: fileTypeAttrTypes}, files)
 }
 
 // InstanceFileDelete deletes a file from an instance.
@@ -70,13 +90,12 @@ func InstanceFileDelete(server incus.InstanceServer, instanceName string, target
 	return nil
 }
 
-// InstanceFileUpload uploads a file to an instance.
-func InstanceFileUpload(server incus.InstanceServer, instanceName string, file InstanceFileModel) error {
+func InstanceFileUpload(server incus.InstanceServer, instanceName string, file InstanceFileModel) (string, error) {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
 
 	if content != "" && sourcePath != "" {
-		return fmt.Errorf("File %q and %q are mutually exclusive.", "content", "source_path")
+		return "", fmt.Errorf("File %q and %q are mutually exclusive.", "content", "source_path")
 	}
 
 	targetPath := file.TargetPath.ValueString()
@@ -88,10 +107,9 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 
 	mode, err := strconv.ParseUint(fileMode, 8, 32)
 	if err != nil {
-		return fmt.Errorf("Failed to parse file mode: %v", err)
+		return "", fmt.Errorf("Failed to parse file mode: %v", err)
 	}
 
-	// Build the file creation request, without the content.
 	args := &incus.InstanceFileArgs{
 		Type: "file",
 		Mode: int(mode),
@@ -105,42 +123,41 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 		args.WriteMode = "overwrite"
 	}
 
-	// If content was specified, read the string.
+	var contentHash string
+
 	if content != "" {
 		args.Content = strings.NewReader(content)
+		contentHash = ComputeFileHash(content)
 	}
 
-	// If a source was specified, read the contents of the source file.
 	if sourcePath != "" {
-		path, err := homedir.Expand(sourcePath)
+		expandedPath, err := homedir.Expand(sourcePath)
 		if err != nil {
-			return fmt.Errorf("Unable to determine source file path: %v", err)
+			return "", fmt.Errorf("Unable to determine source file path: %v", err)
 		}
 
-		f, err := os.Open(path)
+		fileBytes, err := os.ReadFile(expandedPath)
 		if err != nil {
-			return fmt.Errorf("Unable to read source file: %v", err)
+			return "", fmt.Errorf("Unable to read source file: %v", err)
 		}
-		defer func(f *os.File) {
-			err = errors.Join(err, f.Close())
-		}(f)
 
-		args.Content = f
+		contentHash = ComputeFileHash(string(fileBytes))
+		args.Content = strings.NewReader(string(fileBytes))
 	}
 
 	if file.CreateDirs.ValueBool() {
 		err := instanceRecursiveMkdir(server, instanceName, path.Dir(targetPath), *args)
 		if err != nil {
-			return fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
+			return "", fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
 		}
 	}
 
 	err = server.CreateInstanceFile(instanceName, targetPath, *args)
 	if err != nil {
-		return fmt.Errorf("Could not upload file %q: %v", targetPath, err)
+		return "", fmt.Errorf("Could not upload file %q: %v", targetPath, err)
 	}
 
-	return nil
+	return contentHash, nil
 }
 
 // instanceRecursiveMkdir recursively creates directories on target instance.
@@ -204,13 +221,12 @@ func VolumeFileDelete(server incus.InstanceServer, pool, volumeType, volumeName,
 	return nil
 }
 
-// VolumeFileUpload uploads a file to a storage volume.
-func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file InstanceFileModel) error {
+func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file InstanceFileModel) (string, error) {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
 
 	if content != "" && sourcePath != "" {
-		return fmt.Errorf("File %q and %q are mutually exclusive.", "content", "source_path")
+		return "", fmt.Errorf("File %q and %q are mutually exclusive.", "content", "source_path")
 	}
 
 	targetPath := file.TargetPath.ValueString()
@@ -222,10 +238,9 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 
 	mode, err := strconv.ParseUint(fileMode, 8, 32)
 	if err != nil {
-		return fmt.Errorf("Failed to parse file mode: %v", err)
+		return "", fmt.Errorf("Failed to parse file mode: %v", err)
 	}
 
-	// Build the file creation request, without the content.
 	args := &incus.InstanceFileArgs{
 		Type: "file",
 		Mode: int(mode),
@@ -239,42 +254,41 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 		args.WriteMode = "overwrite"
 	}
 
-	// If content was specified, read the string.
+	var contentHash string
+
 	if content != "" {
 		args.Content = strings.NewReader(content)
+		contentHash = ComputeFileHash(content)
 	}
 
-	// If a source was specified, read the contents of the source file.
 	if sourcePath != "" {
-		currentPath, err := homedir.Expand(sourcePath)
+		expandedPath, err := homedir.Expand(sourcePath)
 		if err != nil {
-			return fmt.Errorf("Unable to determine source file currentPath: %v", err)
+			return "", fmt.Errorf("Unable to determine source file currentPath: %v", err)
 		}
 
-		f, err := os.Open(currentPath)
+		fileBytes, err := os.ReadFile(expandedPath)
 		if err != nil {
-			return fmt.Errorf("Unable to read source file: %v", err)
+			return "", fmt.Errorf("Unable to read source file: %v", err)
 		}
-		defer func(f *os.File) {
-			err = errors.Join(err, f.Close())
-		}(f)
 
-		args.Content = f
+		contentHash = ComputeFileHash(string(fileBytes))
+		args.Content = strings.NewReader(string(fileBytes))
 	}
 
 	if file.CreateDirs.ValueBool() {
 		err := volumeRecursiveMkdir(server, pool, volumeType, volumeName, path.Dir(targetPath), *args)
 		if err != nil {
-			return fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
+			return "", fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
 		}
 	}
 
 	err = server.CreateStorageVolumeFile(pool, volumeType, volumeName, targetPath, *args)
 	if err != nil {
-		return fmt.Errorf("Could not upload file %q: %v", targetPath, err)
+		return "", fmt.Errorf("Could not upload file %q: %v", targetPath, err)
 	}
 
-	return nil
+	return contentHash, nil
 }
 
 // volumeRecursiveMkdir recursively creates directories on target instance.
@@ -329,6 +343,15 @@ func volumeRecursiveMkdir(server incus.InstanceServer, pool, volumeType, volumeN
 }
 
 func HasFileContentChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
+	// If both files have content hashes, compare those first.
+	hasNewHash := !newFile.ContentHash.IsNull() && !newFile.ContentHash.IsUnknown()
+	hasOldHash := !oldFile.ContentHash.IsNull() && !oldFile.ContentHash.IsUnknown()
+
+	if hasNewHash && hasOldHash {
+		return newFile.ContentHash.ValueString() != oldFile.ContentHash.ValueString()
+	}
+
+	// Fall back to content/source_path comparison.
 	hasNewContent := !newFile.Content.IsNull()
 	hasOldContent := !oldFile.Content.IsNull()
 	hasNewSourcePath := !newFile.SourcePath.IsNull()
@@ -350,4 +373,44 @@ func HasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileMod
 	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
 		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
 		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
+}
+
+// ComputeFileHash computes a SHA256 hash of content and returns the hex-encoded string.
+func ComputeFileHash(content string) string {
+	h := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(h[:])
+}
+
+// InstanceFileRead reads a file's content and metadata from an instance.
+// Returns the file content as a string and the file response metadata.
+func InstanceFileRead(server incus.InstanceServer, instanceName string, targetPath string) (string, *incus.InstanceFileResponse, error) {
+	reader, fileResp, err := server.GetInstanceFile(instanceName, targetPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+	defer reader.Close()
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read content of file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+
+	return string(content), fileResp, nil
+}
+
+// VolumeFileRead reads a file's content and metadata from a storage volume.
+// Returns the file content as a string and the file response metadata.
+func VolumeFileRead(server incus.InstanceServer, pool, volumeType, volumeName string, targetPath string) (string, *incus.InstanceFileResponse, error) {
+	reader, fileResp, err := server.GetStorageVolumeFile(pool, volumeType, volumeName, targetPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read file %q from volume %q: %w", targetPath, volumeName, err)
+	}
+	defer reader.Close()
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read content of file %q from volume %q: %w", targetPath, volumeName, err)
+	}
+
+	return string(content), fileResp, nil
 }
