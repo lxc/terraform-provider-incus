@@ -264,12 +264,6 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 								stringplanmodifier.UseStateForUnknown(),
 							},
 						},
-
-						// ContentCompared enables reading actual file content back
-						// into state during Read.
-						"content_compared": schema.BoolAttribute{
-							Optional: true,
-						},
 					},
 				},
 			},
@@ -290,6 +284,14 @@ func (r *StorageVolumeResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.provider = provider
+}
+
+func (r *StorageVolumeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Config.Raw.IsNull() {
+		return
+	}
+
+	common.ModifyPlanFileHashes(ctx, req, resp)
 }
 
 func (r StorageVolumeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

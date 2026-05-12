@@ -15,6 +15,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	tfpath "github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
 	"github.com/mitchellh/go-homedir"
@@ -32,7 +34,6 @@ type InstanceFileModel struct {
 	CreateDirs      types.Bool   `tfsdk:"create_directories"`
 	Append          types.Bool   `tfsdk:"append"`
 	ContentHash     types.String `tfsdk:"content_hash"`
-	ContentCompared types.Bool   `tfsdk:"content_compared"`
 }
 
 // ToFileMap converts files from types.Set into map[string]IncusFileModel.
@@ -68,7 +69,6 @@ var fileTypeAttrTypes = map[string]attr.Type{
 	"create_directories": types.BoolType,
 	"append":             types.BoolType,
 	"content_hash":       types.StringType,
-	"content_compared":   types.BoolType,
 }
 
 // ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
@@ -407,6 +407,58 @@ func HasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileMod
 	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
 		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
 		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
+}
+
+// ModifyPlanFileHashes computes content_hash for each file in the plan during
+// the plan phase. This avoids "inconsistent result after apply" errors caused
+// by computed attributes inside SetNestedBlock, where Terraform cannot correlate
+// planned elements (with unknown computed values) to applied elements (with known values).
+func ModifyPlanFileHashes(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	var planFiles types.Set
+	diags := req.Plan.GetAttribute(ctx, tfpath.Root("file"), &planFiles)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() || planFiles.IsNull() || planFiles.IsUnknown() {
+		return
+	}
+
+	fileMap, diags := ToFileMap(ctx, planFiles)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	for targetPath, file := range fileMap {
+		if !file.ContentHash.IsNull() && !file.ContentHash.IsUnknown() {
+			continue
+		}
+
+		content := file.Content.ValueString()
+		sourcePath := file.SourcePath.ValueString()
+
+		if content != "" {
+			file.ContentHash = types.StringValue(ComputeFileHash(content))
+		} else if sourcePath != "" {
+			expandedPath, err := homedir.Expand(sourcePath)
+			if err != nil {
+				continue
+			}
+			fileBytes, err := os.ReadFile(expandedPath)
+			if err != nil {
+				continue
+			}
+			file.ContentHash = types.StringValue(ComputeFileHash(string(fileBytes)))
+		}
+
+		fileMap[targetPath] = file
+	}
+
+	updatedFiles, diags := ToFileSetType(ctx, fileMap)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	resp.Plan.SetAttribute(ctx, tfpath.Root("file"), updatedFiles)
 }
 
 // ComputeFileHash computes a SHA256 hash of content and returns the hex-encoded string.

@@ -475,13 +475,6 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 								stringplanmodifier.UseStateForUnknown(),
 							},
 						},
-
-						// ContentCompared enables reading actual file content back
-						// into state during Read. Use only for small text files
-						// where visible plan diffs are desired.
-						"content_compared": schema.BoolAttribute{
-							Optional: true,
-						},
 					},
 				},
 			},
@@ -518,6 +511,8 @@ func (r *InstanceResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 	if profiles.IsNull() {
 		resp.Plan.SetAttribute(ctx, path.Root("profiles"), []string{"default"})
 	}
+
+	common.ModifyPlanFileHashes(ctx, req, resp)
 }
 
 func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -1486,12 +1481,6 @@ func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.St
 		// Compute hash of remote content and update state.
 		remoteHash := common.ComputeFileHash(remoteContent)
 		file.ContentHash = types.StringValue(remoteHash)
-
-		// If content_compared is enabled, read actual content into state.
-		if file.ContentCompared.ValueBool() {
-			file.Content = types.StringValue(remoteContent)
-			file.SourcePath = types.StringNull()
-		}
 
 		fileMap[targetPath] = file
 	}
