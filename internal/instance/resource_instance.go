@@ -465,16 +465,6 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Computed: true,
 							Default:  booldefault.StaticBool(false),
 						},
-
-						// ContentHash is a computed SHA256 hash of the file content
-						// used for drift detection. It is set during Create/Update
-						// and compared during Read to detect out-of-band changes.
-						"content_hash": schema.StringAttribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
-							},
-						},
 					},
 				},
 			},
@@ -511,8 +501,6 @@ func (r *InstanceResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 	if profiles.IsNull() {
 		resp.Plan.SetAttribute(ctx, path.Root("profiles"), []string{"default"})
 	}
-
-	common.ModifyPlanFileHashes(ctx, req, resp)
 }
 
 func (r InstanceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -809,7 +797,7 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 
 		for k, f := range files {
-			err := common.InstanceFileUpload(server, instanceName, &f)
+			err := common.InstanceFileUpload(server, instanceName, f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
@@ -1042,7 +1030,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		oldFile, exists := oldFiles[k]
 
 		if !exists {
-			err := common.InstanceFileUpload(server, instanceName, &newFile)
+			err := common.InstanceFileUpload(server, instanceName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
@@ -1064,7 +1052,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 				return
 			}
 
-			err = common.InstanceFileUpload(server, instanceName, &newFile)
+			err = common.InstanceFileUpload(server, instanceName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to instance %q", instanceName), err.Error())
 				return
@@ -1447,8 +1435,11 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 }
 
 // detectFileDrift reads files from the instance and updates state with
-// current content hashes to detect out-of-band changes.
-// This is called only during Read (refresh), not during Create/Update.
+// actual file content and metadata to detect out-of-band changes.
+// For files declared with "content", the remote content is written into state,
+// so Terraform detects a diff when it differs from the configured content.
+// For files declared with "source_path", the remote mode is updated in state
+// so permission drift is detected.
 func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, instanceName string) {
 	var m InstanceModel
 	diags := tfState.Get(ctx, &m)
@@ -1460,7 +1451,6 @@ func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.St
 		return
 	}
 
-	// Only detect drift when the instance is running.
 	instanceState, _, err := server.GetInstanceState(instanceName)
 	if err != nil || !isInstanceRunning(*instanceState) {
 		return
@@ -1471,18 +1461,41 @@ func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.St
 		return
 	}
 
+	changed := false
 	for targetPath, file := range fileMap {
-		remoteContent, _, err := common.InstanceFileRead(server, instanceName, targetPath)
+		remoteContent, fileResp, err := common.InstanceFileRead(server, instanceName, targetPath)
 		if err != nil {
-			// Log warning but don't fail the entire Read.
 			continue
 		}
 
-		// Compute hash of remote content and update state.
-		remoteHash := common.ComputeFileHash(remoteContent)
-		file.ContentHash = types.StringValue(remoteHash)
+		declaredContent := file.Content.ValueString()
+		declaredSourcePath := file.SourcePath.ValueString()
+
+		if declaredContent != "" {
+			if remoteContent != declaredContent {
+				file.Content = types.StringValue(remoteContent)
+				changed = true
+			}
+		} else if declaredSourcePath != "" {
+			expandedPath, err := homedir.Expand(declaredSourcePath)
+			if err != nil {
+				continue
+			}
+			localBytes, err := os.ReadFile(expandedPath)
+			if err != nil {
+				continue
+			}
+			if remoteContent != string(localBytes) {
+				file.Mode = types.StringValue(common.FileModeToString(fileResp.Mode))
+				changed = true
+			}
+		}
 
 		fileMap[targetPath] = file
+	}
+
+	if !changed {
+		return
 	}
 
 	updatedFiles, diags := common.ToFileSetType(ctx, fileMap)

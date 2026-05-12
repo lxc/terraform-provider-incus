@@ -255,15 +255,6 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 							Computed: true,
 							Default:  booldefault.StaticBool(false),
 						},
-
-						// ContentHash is a computed SHA256 hash of the file content
-						// used for drift detection.
-						"content_hash": schema.StringAttribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
-							},
-						},
 					},
 				},
 			},
@@ -284,14 +275,6 @@ func (r *StorageVolumeResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.provider = provider
-}
-
-func (r *StorageVolumeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Config.Raw.IsNull() {
-		return
-	}
-
-	common.ModifyPlanFileHashes(ctx, req, resp)
 }
 
 func (r StorageVolumeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -440,7 +423,7 @@ func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Contex
 		volumeName := plan.Name.ValueString()
 
 		for k, f := range files {
-			err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, &f)
+			err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q in pool %q", volumeName, poolName), err.Error())
 				return
@@ -616,7 +599,7 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 		oldFile, exists := oldFiles[k]
 
 		if !exists {
-			err := common.VolumeFileUpload(server, poolName, volType, volName, &newFile)
+			err := common.VolumeFileUpload(server, poolName, volType, volName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q", targetResource), err.Error())
 				return
@@ -638,7 +621,7 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 				return
 			}
 
-			err = common.VolumeFileUpload(server, poolName, volType, volName, &newFile)
+			err = common.VolumeFileUpload(server, poolName, volType, volName, newFile)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to volume %q", targetResource), err.Error())
 				return
