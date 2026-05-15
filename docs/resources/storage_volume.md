@@ -36,6 +36,30 @@ resource "incus_storage_volume" "volume_from_backup" {
 }
 ```
 
+## Example to create a volume with a file
+
+```hcl
+resource "incus_storage_pool" "pool1" {
+  name   = "mypool"
+  driver = "zfs"
+}
+
+resource "incus_storage_volume" "volume1" {
+  name    = "my-config-vol"
+  pool    = incus_storage_pool.pool1.name
+  project = "default"
+
+  file {
+    source_path        = "config.conf"
+    target_path        = "/etc/app/config.conf"
+    uid                = 1000
+    gid                = 1000
+    mode               = "0644"
+    create_directories = true
+  }
+}
+```
+
 ## Argument Reference
 
 * `name` - **Required** - Name of the storage volume.
@@ -64,6 +88,8 @@ resource "incus_storage_volume" "volume_from_backup" {
 
 * `source_file` - *Optional* - Path to a backup file from which the volume will be created.
 
+* `file` - *Optional* - File to upload to the storage volume. See reference below.
+
 The `source_volume` block supports:
 
 * `name` - **Required** - Name of the storage volume.
@@ -72,6 +98,26 @@ The `source_volume` block supports:
 
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
+
+The `file` block supports:
+
+* `target_path` - **Required** - The absolute path of the file on the volume,
+  including the filename.
+
+* `content` - *Optional* - The *contents* of the file. Mutually exclusive with `source_path`.
+  Use the `file()` function to read in the content of a file from disk.
+
+* `source_path` - *Optional* - The source path to a file to
+  copy to the volume. Mutually exclusive with `content`.
+
+* `uid` - *Optional* - The UID of the file. Must be an unquoted integer.
+
+* `gid` - *Optional* - The GID of the file. Must be an unquoted integer.
+
+* `mode` - *Optional* - The octal permissions of the file, must be quoted. Defaults to `0755`.
+
+* `create_directories` - *Optional* - Whether to create the directories leading
+  to the target if they do not exist.
 
 ## Attribute Reference
 
