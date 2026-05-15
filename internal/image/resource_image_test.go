@@ -301,6 +301,8 @@ func TestAccImage_oci(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.oci_img1", "source_image.remote", "docker"),
 					resource.TestCheckResourceAttr("incus_image.oci_img1", "source_image.name", imageName),
+					resource.TestCheckResourceAttrSet("incus_image.oci_img1", "fingerprint"),
+					resource.TestCheckResourceAttrSet("incus_image.oci_img1", "resource_id"),
 				),
 			},
 		},
