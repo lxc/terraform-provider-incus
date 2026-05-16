@@ -130,6 +130,30 @@ func (r *StoragePoolResource) Configure(_ context.Context, req resource.Configur
 	r.provider = provider
 }
 
+func (r *StoragePoolResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// If resource is being created or destroyed, req.State or req.Plan will be null.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state StoragePoolModel
+	var plan StoragePoolModel
+
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+
+	diags = req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.Driver.ValueString() == "zfs" && configValueChanged(ctx, state.Config, plan.Config, "source") {
+		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("config").AtMapKey("source"))
+	}
+}
+
 func (r StoragePoolResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan StoragePoolModel
 
@@ -317,6 +341,7 @@ func (r StoragePoolResource) SyncState(ctx context.Context, tfState *tfsdk.State
 
 	// Extract user defined config and merge it with current config state.
 	stateConfig := common.StripConfig(pool.Config, m.Config, m.ComputedKeys(pool.Driver))
+	stateConfig = m.PreserveUserConfig(pool.Driver, stateConfig)
 
 	// Convert config state into schema type.
 	config, diags := common.ToConfigMapType(ctx, stateConfig, m.Config)
@@ -396,4 +421,63 @@ func (StoragePoolModel) ComputedKeys(driver string) []string {
 	}
 
 	return append(keys, "volatile.")
+}
+
+// PreserveUserConfig keeps user supplied values for config keys that Incus may
+// rewrite after pool creation. This avoids apply-time state inconsistencies for
+// create-only inputs such as a ZFS source block device path.
+func (m StoragePoolModel) PreserveUserConfig(driver string, stateConfig map[string]*string) map[string]*string {
+	userConfig := map[string]*string{}
+	if !m.Config.IsNull() && !m.Config.IsUnknown() {
+		_ = m.Config.ElementsAs(context.Background(), &userConfig, false)
+	}
+
+	for _, key := range preserveUserConfigKeys(driver) {
+		value, ok := userConfig[key]
+		if ok {
+			stateConfig[key] = value
+		}
+	}
+
+	return stateConfig
+}
+
+func preserveUserConfigKeys(driver string) []string {
+	switch driver {
+	case "zfs":
+		return []string{"source"}
+	}
+
+	return nil
+}
+
+func configValueChanged(ctx context.Context, stateConfig types.Map, planConfig types.Map, key string) bool {
+	stateValue, stateOK := configValue(ctx, stateConfig, key)
+	planValue, planOK := configValue(ctx, planConfig, key)
+
+	if stateOK != planOK {
+		return true
+	}
+
+	if !stateOK {
+		return false
+	}
+
+	if stateValue == nil || planValue == nil {
+		return stateValue != planValue
+	}
+
+	return *stateValue != *planValue
+}
+
+func configValue(ctx context.Context, config types.Map, key string) (*string, bool) {
+	if config.IsNull() || config.IsUnknown() {
+		return nil, false
+	}
+
+	values := map[string]*string{}
+	_ = config.ElementsAs(ctx, &values, false)
+
+	value, ok := values[key]
+	return value, ok
 }
