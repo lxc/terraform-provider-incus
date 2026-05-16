@@ -667,9 +667,11 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		return
 	}
 
-	// Determine the correct image for the specified architecture.
+	// Determine the correct image for the specified architecture. OCI remotes must
+	// be resolved by the Incus server so the Terraform client OS/architecture does
+	// not influence platform selection.
 	architecture := sourceImageModel.Architecture.ValueString()
-	if architecture != "" {
+	if architecture != "" && connInfo.Protocol != "oci" {
 		availableArchitectures, err := imageServer.GetImageAliasArchitectures(imageType, image)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to get image alias architectures", err.Error())
@@ -696,15 +698,12 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		}
 	}
 
-	// Determine whether the user has provided a fingerprint or an alias.
-	aliasTarget, _, err := imageServer.GetImageAliasType(imageType, image)
-	if connInfo.Protocol == "oci" && err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to get image alias for OCI image %s", image), err.Error())
-		return
-	}
-
-	if aliasTarget != nil {
-		image = aliasTarget.Target
+	if connInfo.Protocol != "oci" {
+		// Determine whether the user has provided a fingerprint or an alias.
+		aliasTarget, _, _ := imageServer.GetImageAliasType(imageType, image)
+		if aliasTarget != nil {
+			image = aliasTarget.Target
+		}
 	}
 
 	imageAliases, diags := ToImageAliases(ctx, plan.Alias)
@@ -719,11 +718,19 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		return
 	}
 
-	// Get data about remote image (also checks if image exists).
-	imageInfo, _, err := imageServer.GetImage(image)
-	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve info about image %q", image), err.Error())
-		return
+	var imageInfo *api.Image
+	if connInfo.Protocol == "oci" {
+		imageInfo = &api.Image{
+			ImagePut:    api.ImagePut{Public: true},
+			Fingerprint: image,
+		}
+	} else {
+		// Get data about remote image (also checks if image exists).
+		imageInfo, _, err = imageServer.GetImage(image)
+		if err != nil {
+			resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve info about image %q", image), err.Error())
+			return
+		}
 	}
 
 	// Copy image.
@@ -732,18 +739,7 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		Public:  false,
 	}
 
-	var opCopy incus.RemoteOperation
-	if connInfo.Protocol == "oci" {
-		// For OCI images, we need to use the actual image name to pull the image from the current OCI images registry.
-		// Nevertheless, we need to restore the actual fingerprint after copying the image by name.
-		realFingerprint := imageInfo.Fingerprint
-		imageInfo.Fingerprint = sourceImageModel.Name.ValueString()
-		opCopy, err = server.CopyImage(imageServer, *imageInfo, &args)
-		imageInfo.Fingerprint = realFingerprint
-	} else {
-		opCopy, err = server.CopyImage(imageServer, *imageInfo, &args)
-	}
-
+	opCopy, err := server.CopyImage(imageServer, *imageInfo, &args)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to copy image %q", image), err.Error())
 		return
@@ -755,6 +751,24 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to copy image %q", image), err.Error())
 		return
 	}
+
+	opResp, err := opCopy.GetTarget()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get copy operation data", err.Error())
+		return
+	}
+
+	imageFingerprint, ok := opResp.Metadata["fingerprint"].(string)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Failed to get fingerprint of copied image",
+			fmt.Sprintf(`Fingerprint "%v" is not a string`, opResp.Metadata["fingerprint"]),
+		)
+		return
+	}
+
+	imageID := createImageResourceID(remote, imageFingerprint)
+	plan.ResourceID = types.StringValue(imageID)
 
 	// Store remote aliases that we've copied, so we can filter them
 	// out later.
@@ -770,9 +784,6 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	imageID := createImageResourceID(remote, imageInfo.Fingerprint)
-	plan.ResourceID = types.StringValue(imageID)
 
 	plan.CopiedAliases = copiedAliases
 
