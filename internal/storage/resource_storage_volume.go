@@ -422,13 +422,22 @@ func (r StorageVolumeResource) uploadFilesOnStoragePoolVolume(ctx context.Contex
 		volumeType := plan.Type.ValueString()
 		volumeName := plan.Name.ValueString()
 
-		for _, f := range files {
+		for k, f := range files {
 			err := common.VolumeFileUpload(server, poolName, volumeType, volumeName, f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q in pool %q", volumeName, poolName), err.Error())
 				return
 			}
+			files[k] = f
 		}
+
+		// Update plan files with computed content hashes.
+		updatedFiles, diags := common.ToFileSetType(ctx, files)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Files = updatedFiles
 	}
 }
 
@@ -595,6 +604,7 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to volume %q", targetResource), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 			continue
 		}
 
@@ -616,8 +626,17 @@ func (r StorageVolumeResource) Update(ctx context.Context, req resource.UpdateRe
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to volume %q", targetResource), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 		}
 	}
+
+	// Update plan files with computed content hashes from uploads.
+	updatedFiles, diags := common.ToFileSetType(ctx, newFiles)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Files = updatedFiles
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)

@@ -870,6 +870,35 @@ func TestAccInstance_fileUploadSource(t *testing.T) {
 	})
 }
 
+func TestAccInstance_filePermissionDriftDetection(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "name", instanceName),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.mode", "0644"),
+				),
+			},
+			{
+				// Change file permissions out-of-band.
+				PreConfig: acctest.ModifyInstanceFilePermissions(t, instanceName, "/foo/bar.txt", "0777"),
+				Config:    testAccInstance_fileUploadContent_1(instanceName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					// After refresh, the mode should be updated to reflect the
+					// out-of-band change (0777), causing drift detection.
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_configLimits(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 

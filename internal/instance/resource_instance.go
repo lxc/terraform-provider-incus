@@ -796,13 +796,22 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		for _, f := range files {
+		for k, f := range files {
 			err := common.InstanceFileUpload(server, instanceName, f)
 			if err != nil {
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
 			}
+			files[k] = f
 		}
+
+		// Update plan files with computed content hashes.
+		updatedFiles, diags := common.ToFileSetType(ctx, files)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Files = updatedFiles
 	}
 
 	// Run exec commands.
@@ -869,6 +878,12 @@ func (r InstanceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, state)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Detect file drift by reading files back from the instance.
+	r.detectFileDrift(ctx, &resp.State, server, state.Name.ValueString())
 }
 
 // Update updates the instance in the following order:
@@ -1020,6 +1035,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload file to instance %q", instanceName), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 			continue
 		}
 
@@ -1041,6 +1057,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 				resp.Diagnostics.AddError(fmt.Sprintf("Failed to upload updated file to instance %q", instanceName), err.Error())
 				return
 			}
+			newFiles[k] = newFile
 		}
 	}
 
@@ -1132,6 +1149,14 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 		}
 	}
+
+	// Update plan files with computed content hashes from uploads.
+	updatedFiles, diags := common.ToFileSetType(ctx, newFiles)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Files = updatedFiles
 
 	// Update Terraform state.
 	diags = r.SyncState(ctx, &resp.State, server, plan)
@@ -1407,6 +1432,79 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.Target = types.StringValue(actualTarget)
 
 	return tfState.Set(ctx, &m)
+}
+
+// detectFileDrift reads files from the instance and updates state with
+// actual file content and metadata to detect out-of-band changes.
+// For files declared with "content", the remote content is written into state,
+// so Terraform detects a diff when it differs from the configured content.
+// For files declared with "source_path", the remote mode is updated in state
+// so permission drift is detected.
+func (r InstanceResource) detectFileDrift(ctx context.Context, tfState *tfsdk.State, server incus.InstanceServer, instanceName string) {
+	var m InstanceModel
+	diags := tfState.Get(ctx, &m)
+	if diags.HasError() {
+		return
+	}
+
+	if m.Files.IsNull() || m.Files.IsUnknown() {
+		return
+	}
+
+	instanceState, _, err := server.GetInstanceState(instanceName)
+	if err != nil || !isInstanceRunning(*instanceState) {
+		return
+	}
+
+	fileMap, diags := common.ToFileMap(ctx, m.Files)
+	if diags.HasError() {
+		return
+	}
+
+	changed := false
+	for targetPath, file := range fileMap {
+		remoteContent, fileResp, err := common.InstanceFileRead(server, instanceName, targetPath)
+		if err != nil {
+			continue
+		}
+
+		declaredContent := file.Content.ValueString()
+		declaredSourcePath := file.SourcePath.ValueString()
+
+		if declaredContent != "" {
+			if remoteContent != declaredContent {
+				file.Content = types.StringValue(remoteContent)
+				changed = true
+			}
+		} else if declaredSourcePath != "" {
+			expandedPath, err := homedir.Expand(declaredSourcePath)
+			if err != nil {
+				continue
+			}
+			localBytes, err := os.ReadFile(expandedPath)
+			if err != nil {
+				continue
+			}
+			if remoteContent != string(localBytes) {
+				file.Mode = types.StringValue(common.FileModeToString(fileResp.Mode))
+				changed = true
+			}
+		}
+
+		fileMap[targetPath] = file
+	}
+
+	if !changed {
+		return
+	}
+
+	updatedFiles, diags := common.ToFileSetType(ctx, fileMap)
+	if diags.HasError() {
+		return
+	}
+
+	m.Files = updatedFiles
+	tfState.Set(ctx, &m)
 }
 
 func (r InstanceResource) createInstanceFromImage(ctx context.Context, server incus.InstanceServer, plan InstanceModel) diag.Diagnostics {

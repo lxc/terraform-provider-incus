@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	incus "github.com/lxc/incus/v6/client"
@@ -50,6 +52,19 @@ func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileM
 	return fileMap, diags
 }
 
+// fileTypeAttrTypes defines the attribute types for the file nested block.
+// This must match the InstanceFileModel struct fields and the schema definition.
+var fileTypeAttrTypes = map[string]attr.Type{
+	"content":            types.StringType,
+	"source_path":        types.StringType,
+	"target_path":        types.StringType,
+	"uid":                types.Int64Type,
+	"gid":                types.Int64Type,
+	"mode":               types.StringType,
+	"create_directories": types.BoolType,
+	"append":             types.BoolType,
+}
+
 // ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
 func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (types.Set, diag.Diagnostics) {
 	files := make([]InstanceFileModel, 0, len(fileMap))
@@ -57,7 +72,7 @@ func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (t
 		files = append(files, v)
 	}
 
-	return types.SetValueFrom(ctx, types.ObjectType{}, files)
+	return types.SetValueFrom(ctx, types.ObjectType{AttrTypes: fileTypeAttrTypes}, files)
 }
 
 // InstanceFileDelete deletes a file from an instance.
@@ -205,6 +220,7 @@ func VolumeFileDelete(server incus.InstanceServer, pool, volumeType, volumeName,
 }
 
 // VolumeFileUpload uploads a file to a storage volume.
+// VolumeFileUpload uploads a file to a storage volume.
 func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName string, file InstanceFileModel) error {
 	content := file.Content.ValueString()
 	sourcePath := file.SourcePath.ValueString()
@@ -350,4 +366,27 @@ func HasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileMod
 	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
 		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||
 		newFile.GroupID.ValueInt64() != oldFile.GroupID.ValueInt64()
+}
+
+// FileModeToString converts an integer file mode to an octal permission string (e.g., 493 -> "0755").
+// It masks to permission bits only (0o777) since the server response includes file type bits.
+func FileModeToString(mode int) string {
+	return fmt.Sprintf("%04o", mode&0o777)
+}
+
+// InstanceFileRead reads a file's content and metadata from an instance.
+// Returns the file content as a string and the file response metadata.
+func InstanceFileRead(server incus.InstanceServer, instanceName string, targetPath string) (string, *incus.InstanceFileResponse, error) {
+	reader, fileResp, err := server.GetInstanceFile(instanceName, targetPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+	defer reader.Close()
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", nil, fmt.Errorf("Failed to read content of file %q from instance %q: %w", targetPath, instanceName, err)
+	}
+
+	return string(content), fileResp, nil
 }
