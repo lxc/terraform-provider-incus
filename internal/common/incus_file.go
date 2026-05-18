@@ -50,16 +50,6 @@ func ToFileMap(ctx context.Context, fileSet types.Set) (map[string]InstanceFileM
 	return fileMap, diags
 }
 
-// ToFileSetType converts files from a map[string]IncusFileModel into types.Set.
-func ToFileSetType(ctx context.Context, fileMap map[string]InstanceFileModel) (types.Set, diag.Diagnostics) {
-	files := make([]InstanceFileModel, 0, len(fileMap))
-	for _, v := range fileMap {
-		files = append(files, v)
-	}
-
-	return types.SetValueFrom(ctx, types.ObjectType{}, files)
-}
-
 // InstanceFileDelete deletes a file from an instance.
 func InstanceFileDelete(server incus.InstanceServer, instanceName string, targetPath string) error {
 	err := server.DeleteInstanceFile(instanceName, targetPath)
