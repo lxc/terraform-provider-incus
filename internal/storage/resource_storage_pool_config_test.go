@@ -1,4 +1,4 @@
-package storage
+package storage_test
 
 import (
 	"context"
@@ -6,13 +6,15 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
 
 func TestStoragePoolPreserveUserConfig_Source(t *testing.T) {
 	userSource := "/dev/disk/by-id/test-disk"
 	apiSource := "pool1"
 
-	model := StoragePoolModel{
+	model := storage.StoragePoolModel{
 		Config: types.MapValueMust(types.StringType, map[string]attr.Value{
 			"source": types.StringValue(userSource),
 		}),
@@ -37,7 +39,7 @@ func TestStoragePoolPreserveUserConfig_NonZFSDriver(t *testing.T) {
 	userSource := "/dev/disk/by-id/test-disk"
 	apiSource := "pool1"
 
-	model := StoragePoolModel{
+	model := storage.StoragePoolModel{
 		Config: types.MapValueMust(types.StringType, map[string]attr.Value{
 			"source": types.StringValue(userSource),
 		}),
@@ -69,7 +71,7 @@ func TestStoragePoolConfigValueChanged(t *testing.T) {
 		"source": types.StringValue("/dev/disk/by-id/disk-b"),
 	})
 
-	if !configValueChanged(ctx, stateConfig, planConfig, "source") {
+	if !storage.ConfigValueChanged(ctx, stateConfig, planConfig, "source") {
 		t.Fatal("expected source change to be detected")
 	}
 }
@@ -85,7 +87,7 @@ func TestStoragePoolConfigValueChanged_Unchanged(t *testing.T) {
 		"source": types.StringValue("/dev/disk/by-id/disk-a"),
 	})
 
-	if configValueChanged(ctx, stateConfig, planConfig, "source") {
+	if storage.ConfigValueChanged(ctx, stateConfig, planConfig, "source") {
 		t.Fatal("expected unchanged source not to be detected as changed")
 	}
 }
