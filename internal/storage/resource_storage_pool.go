@@ -149,7 +149,7 @@ func (r *StoragePoolResource) ModifyPlan(ctx context.Context, req resource.Modif
 		return
 	}
 
-	if plan.Driver.ValueString() == "zfs" && configValueChanged(ctx, state.Config, plan.Config, "source") {
+	if plan.Driver.ValueString() == "zfs" && ConfigValueChanged(ctx, state.Config, plan.Config, "source") {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("config").AtMapKey("source"))
 	}
 }
@@ -451,7 +451,8 @@ func preserveUserConfigKeys(driver string) []string {
 	return nil
 }
 
-func configValueChanged(ctx context.Context, stateConfig types.Map, planConfig types.Map, key string) bool {
+// ConfigValueChanged returns true if the state or plan config values for the given key are different.
+func ConfigValueChanged(ctx context.Context, stateConfig types.Map, planConfig types.Map, key string) bool {
 	stateValue, stateOK := configValue(ctx, stateConfig, key)
 	planValue, planOK := configValue(ctx, planConfig, key)
 
