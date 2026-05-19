@@ -456,6 +456,10 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							},
 						},
 
+						"directory_mode": schema.StringAttribute{
+							Optional: true,
+						},
+
 						"create_directories": schema.BoolAttribute{
 							Optional: true,
 						},

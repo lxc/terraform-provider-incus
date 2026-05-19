@@ -246,6 +246,10 @@ func (r StorageVolumeResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 						},
 
+						"directory_mode": schema.StringAttribute{
+							Optional: true,
+						},
+
 						"create_directories": schema.BoolAttribute{
 							Optional: true,
 						},
