@@ -373,13 +373,19 @@ func (r NetworkResource) SyncState(ctx context.Context, tfState *tfsdk.State, se
 		}
 	}
 
-	resConfig := network.Config
+	resourceConfig := network.Config
 	if server.IsClustered() && isTargetedNetwork(m) {
-		resConfig = stripClusterWideNetworkConfig(resConfig)
+		userConfig, diags := common.ToConfigMap(ctx, m.Config)
+		respDiags.Append(diags...)
+		if respDiags.HasError() {
+			return respDiags
+		}
+
+		resourceConfig = buildTargetedClusterNetworkConfig(resourceConfig, userConfig)
 	}
 
 	// Extract user defined config and merge it with current config state.
-	stateConfig := common.StripConfig(resConfig, m.Config, m.ComputedKeys())
+	stateConfig := common.StripConfig(resourceConfig, m.Config, m.ComputedKeys())
 
 	// Convert config state into schema type.
 	config, diags := common.ToConfigMapType(ctx, stateConfig, m.Config)
@@ -423,6 +429,19 @@ func (NetworkModel) ComputedKeys() []string {
 // isTargetedNetwork returns true if the network resource is scoped to a target.
 func isTargetedNetwork(m NetworkModel) bool {
 	return !m.Target.IsUnknown() && !m.Target.IsNull() && m.Target.ValueString() != ""
+}
+
+// buildTargetedClusterNetworkConfig filters and merges resource- and user-specific network configs.
+func buildTargetedClusterNetworkConfig(resourceConfig map[string]string, userConfig map[string]string) map[string]string {
+	config := stripClusterWideNetworkConfig(resourceConfig)
+
+	for key, value := range userConfig {
+		if isNodeSpecificNetworkConfig(key) {
+			config[key] = value
+		}
+	}
+
+	return config
 }
 
 // stripClusterWideNetworkConfig keeps only config keys owned by a targeted clustered network resource.
