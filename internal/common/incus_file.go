@@ -19,14 +19,19 @@ import (
 )
 
 type InstanceFileModel struct {
-	Content    types.String `tfsdk:"content"`
-	SourcePath types.String `tfsdk:"source_path"`
-	TargetPath types.String `tfsdk:"target_path"`
-	UserID     types.Int64  `tfsdk:"uid"`
-	GroupID    types.Int64  `tfsdk:"gid"`
-	Mode       types.String `tfsdk:"mode"`
-	CreateDirs types.Bool   `tfsdk:"create_directories"`
-	Append     types.Bool   `tfsdk:"append"`
+	Content       types.String `tfsdk:"content"`
+	SourcePath    types.String `tfsdk:"source_path"`
+	TargetPath    types.String `tfsdk:"target_path"`
+	UserID        types.Int64  `tfsdk:"uid"`
+	GroupID       types.Int64  `tfsdk:"gid"`
+	Mode          types.String `tfsdk:"mode"`
+	DirectoryMode types.String `tfsdk:"directory_mode"`
+	CreateDirs    types.Bool   `tfsdk:"create_directories"`
+	Append        types.Bool   `tfsdk:"append"`
+}
+
+type fileInfo struct {
+	Type string
 }
 
 // ToFileMap converts files from types.Set into map[string]IncusFileModel.
@@ -119,7 +124,24 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 	}
 
 	if file.CreateDirs.ValueBool() {
-		err := instanceRecursiveMkdir(server, instanceName, path.Dir(targetPath), *args)
+		directoryMode := "0755"
+		if file.DirectoryMode.ValueString() != "" {
+			directoryMode = file.DirectoryMode.ValueString()
+		}
+
+		dirMode, err := strconv.ParseUint(directoryMode, 8, 32)
+		if err != nil {
+			return fmt.Errorf("Failed to parse file mode: %v", err)
+		}
+
+		dirArgs := incus.InstanceFileArgs{
+			Type: "directory",
+			Mode: int(dirMode),
+			UID:  args.UID,
+			GID:  args.GID,
+		}
+
+		err = instanceRecursiveMkdir(server, instanceName, path.Dir(targetPath), dirArgs)
 		if err != nil {
 			return fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
 		}
@@ -133,40 +155,45 @@ func InstanceFileUpload(server incus.InstanceServer, instanceName string, file I
 	return nil
 }
 
-// instanceRecursiveMkdir recursively creates directories on target instance.
-func instanceRecursiveMkdir(server incus.InstanceServer, instanceName string, p string, args incus.InstanceFileArgs) error {
+// recursiveMkdir recursively creates all missing directories in the given path.
+//
+// The function first walks backwards through the path components to find the
+// deepest existing directory using the supplied getFileInfo callback. If an existing
+// path component is found but is not a directory, an error is returned.
+//
+// Once the deepest existing directory is identified, all remaining missing
+// directories are created in order using the supplied createDirectory callback.
+func recursiveMkdir(
+	path string,
+	dirArgs incus.InstanceFileArgs,
+	getFileInfo func(path string) (fileInfo, error),
+	createDirectory func(path string, args incus.InstanceFileArgs) error,
+) error {
 	// Special case, every instance has a /, so there is nothing to do.
-	if p == "/" {
+	if path == "/" {
 		return nil
 	}
 
 	// Remove trailing "/" e.g. /A/B/C/. Otherwise we will end up with an
 	// empty array entry "" which will confuse the Mkdir() loop below.
-	pclean := filepath.Clean(p)
-	parts := strings.Split(pclean, "/")
+	cleanPath := filepath.Clean(path)
+	parts := strings.Split(cleanPath, "/")
 	i := len(parts)
 
 	for ; i >= 1; i-- {
-		cur := filepath.Join(parts[:i]...)
-		_, resp, err := server.GetInstanceFile(instanceName, cur)
+		currentPath := filepath.Join(parts[:i]...)
+
+		info, err := getFileInfo(currentPath)
 		if err != nil {
 			continue
 		}
 
-		if resp.Type != "directory" {
-			return fmt.Errorf("%s is not a directory", cur)
+		if info.Type != "directory" {
+			return fmt.Errorf("%s is not a directory", currentPath)
 		}
 
 		i++
 		break
-	}
-
-	// Use same arguments as for file upload, only change file type.
-	dirArgs := incus.InstanceFileArgs{
-		Type: "directory",
-		Mode: args.Mode,
-		UID:  args.UID,
-		GID:  args.GID,
 	}
 
 	for ; i <= len(parts); i++ {
@@ -175,13 +202,31 @@ func instanceRecursiveMkdir(server incus.InstanceServer, instanceName string, p 
 			continue
 		}
 
-		err := server.CreateInstanceFile(instanceName, cur, dirArgs)
-		if err != nil {
+		if err := createDirectory(cur, dirArgs); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// instanceRecursiveMkdir recursively creates directories on the target instance.
+func instanceRecursiveMkdir(server incus.InstanceServer, instanceName string, path string, dirArgs incus.InstanceFileArgs) error {
+	return recursiveMkdir(
+		path,
+		dirArgs,
+		func(path string) (fileInfo, error) {
+			_, resp, err := server.GetInstanceFile(instanceName, path)
+			if err != nil {
+				return fileInfo{}, err
+			}
+
+			return fileInfo{Type: resp.Type}, nil
+		},
+		func(path string, args incus.InstanceFileArgs) error {
+			return server.CreateInstanceFile(instanceName, path, args)
+		},
+	)
 }
 
 // VolumeFileDelete deletes a file from a storage volume.
@@ -253,7 +298,24 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 	}
 
 	if file.CreateDirs.ValueBool() {
-		err := volumeRecursiveMkdir(server, pool, volumeType, volumeName, path.Dir(targetPath), *args)
+		directoryMode := "0755"
+		if file.DirectoryMode.ValueString() != "" {
+			directoryMode = file.DirectoryMode.ValueString()
+		}
+
+		dirMode, err := strconv.ParseUint(directoryMode, 8, 32)
+		if err != nil {
+			return fmt.Errorf("Failed to parse file mode: %v", err)
+		}
+
+		dirArgs := incus.InstanceFileArgs{
+			Type: "directory",
+			Mode: int(dirMode),
+			UID:  args.UID,
+			GID:  args.GID,
+		}
+
+		err = volumeRecursiveMkdir(server, pool, volumeType, volumeName, path.Dir(targetPath), dirArgs)
 		if err != nil {
 			return fmt.Errorf("Could not create directories for file %q: %v", targetPath, err)
 		}
@@ -267,57 +329,26 @@ func VolumeFileUpload(server incus.InstanceServer, pool, volumeType, volumeName 
 	return nil
 }
 
-// volumeRecursiveMkdir recursively creates directories on target instance.
-func volumeRecursiveMkdir(server incus.InstanceServer, pool, volumeType, volumeName, p string, args incus.InstanceFileArgs) error {
-	// Special case, every instance has a /, so there is nothing to do.
-	if p == "/" {
-		return nil
-	}
+// volumeRecursiveMkdir recursively creates directories in storage pool volume.
+func volumeRecursiveMkdir(server incus.InstanceServer, pool, volumeType, volumeName, path string, dirArgs incus.InstanceFileArgs) error {
+	return recursiveMkdir(
+		path,
+		dirArgs,
+		func(path string) (fileInfo, error) {
+			_, resp, err := server.GetStorageVolumeFile(pool, volumeType, volumeName, path)
+			if err != nil {
+				return fileInfo{}, err
+			}
 
-	// Remove trailing "/" e.g. /A/B/C/. Otherwise we will end up with an
-	// empty array entry "" which will confuse the Mkdir() loop below.
-	pclean := filepath.Clean(p)
-	parts := strings.Split(pclean, "/")
-	i := len(parts)
-
-	for ; i >= 1; i-- {
-		cur := filepath.Join(parts[:i]...)
-		_, resp, err := server.GetStorageVolumeFile(pool, volumeType, volumeName, cur)
-		if err != nil {
-			continue
-		}
-
-		if resp.Type != "directory" {
-			return fmt.Errorf("%s is not a directory", cur)
-		}
-
-		i++
-		break
-	}
-
-	// Use same arguments as for file upload, only change file type.
-	dirArgs := incus.InstanceFileArgs{
-		Type: "directory",
-		Mode: args.Mode,
-		UID:  args.UID,
-		GID:  args.GID,
-	}
-
-	for ; i <= len(parts); i++ {
-		cur := filepath.Join(parts[:i]...)
-		if cur == "" {
-			continue
-		}
-
-		err := server.CreateStorageVolumeFile(pool, volumeType, volumeName, cur, dirArgs)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+			return fileInfo{Type: resp.Type}, nil
+		},
+		func(path string, args incus.InstanceFileArgs) error {
+			return server.CreateStorageVolumeFile(pool, volumeType, volumeName, path, args)
+		},
+	)
 }
 
+// HasFileContentChanged determines if the content or source path of the new file differs from the corresponding old file.
 func HasFileContentChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
 	hasNewContent := !newFile.Content.IsNull()
 	hasOldContent := !oldFile.Content.IsNull()
@@ -336,6 +367,7 @@ func HasFileContentChanged(newFile InstanceFileModel, oldFile InstanceFileModel)
 	return false
 }
 
+// HasFilePermissionChanged determines if the mode, user ID, or group ID of the new file differs from the corresponding old file.
 func HasFilePermissionChanged(newFile InstanceFileModel, oldFile InstanceFileModel) bool {
 	return newFile.Mode.ValueString() != oldFile.Mode.ValueString() ||
 		newFile.UserID.ValueInt64() != oldFile.UserID.ValueInt64() ||

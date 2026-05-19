@@ -802,6 +802,7 @@ func TestAccInstance_fileUploadContent(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.content", "Hello, World!\n"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.target_path", "/foo/bar.txt"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.create_directories", "true"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "file.0.directory_mode", "0777"),
 				),
 			},
 			{
@@ -1953,6 +1954,7 @@ resource "incus_instance" "instance1" {
     target_path        = "/foo/bar.txt"
     mode               = "0777"
     create_directories = true
+    directory_mode     = "0777"
   }
 }
 	`, name, acctest.TestImage)

@@ -429,6 +429,7 @@ func TestAccStorageVolume_fileUploadContent(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.content", "Hello, World!\n"),
 					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.target_path", "/foo/bar.txt"),
 					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.create_directories", "true"),
+					resource.TestCheckResourceAttr("incus_storage_volume.volume1", "file.0.directory_mode", "0777"),
 				),
 			},
 			{
@@ -748,6 +749,7 @@ resource "incus_storage_volume" "volume1" {
     target_path        = "/foo/bar.txt"
     mode               = "0777"
     create_directories = true
+    directory_mode     = "0777"
   }
 }
 
