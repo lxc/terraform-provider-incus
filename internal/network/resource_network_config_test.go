@@ -61,3 +61,22 @@ func TestNetworkConfig_stripClusterWideKeys(t *testing.T) {
 		t.Fatalf("stripClusterWideNetworkConfig() = %#v, want %#v", actual, expected)
 	}
 }
+
+func TestNetworkConfig_targetedClusterKeepsUserNodeSpecificTunnelConfig(t *testing.T) {
+	resourceConfig := map[string]string{
+		"dns.domain": "example.test",
+	}
+
+	userConfig := map[string]string{
+		"tunnel.mesh.interface": "eth0",
+	}
+
+	actual := buildTargetedClusterNetworkConfig(resourceConfig, userConfig)
+	wanted := map[string]string{
+		"tunnel.mesh.interface": "eth0",
+	}
+
+	if !reflect.DeepEqual(actual, wanted) {
+		t.Fatalf("targetedClusterNetworkConfig() = %#v, want %#v", actual, wanted)
+	}
+}
