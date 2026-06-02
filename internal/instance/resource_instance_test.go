@@ -1522,10 +1522,10 @@ func testAccInstance_ociWithRemote(name string, image string) string {
 	return fmt.Sprintf(`
 provider "incus" {
   remote {
-    name     = "docker"
-    address  = "https://docker.io"
-    protocol = "oci"
-    public   = true
+    name       = "docker"
+    addresses  = ["https://docker.io"]
+    protocol   = "oci"
+    public     = true
   }
 }
 

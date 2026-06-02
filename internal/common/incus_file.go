@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	incus "github.com/lxc/incus/v6/client"
+	incus "github.com/lxc/incus/v7/client"
 	"github.com/mitchellh/go-homedir"
 
 	tfierrors "github.com/lxc/terraform-provider-incus/internal/errors"

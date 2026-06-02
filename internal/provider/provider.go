@@ -14,8 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	incus_config "github.com/lxc/incus/v6/shared/cliconfig"
-	incus_shared "github.com/lxc/incus/v6/shared/util"
+	incus_config "github.com/lxc/incus/v7/shared/cliconfig"
+	incus_shared "github.com/lxc/incus/v7/shared/util"
 
 	"github.com/lxc/terraform-provider-incus/internal/certificate"
 	"github.com/lxc/terraform-provider-incus/internal/cluster"
