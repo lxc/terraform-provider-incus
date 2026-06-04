@@ -14,8 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	incus_config "github.com/lxc/incus/v6/shared/cliconfig"
-	incus_shared "github.com/lxc/incus/v6/shared/util"
+	incus_config "github.com/lxc/incus/v7/shared/cliconfig"
+	incus_shared "github.com/lxc/incus/v7/shared/util"
 
 	"github.com/lxc/terraform-provider-incus/internal/certificate"
 	"github.com/lxc/terraform-provider-incus/internal/cluster"
@@ -104,7 +104,7 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 
 						"address": schema.StringAttribute{
 							Optional:    true,
-							Description: "The URL of the Incus host. The default will be the path to the local unix socket, or leaving it as an empty string will use the default socket path.",
+							Description: "The URL of the Incus host. Multiple addresses can be provided as a comma-separated string. The default will be the path to the local unix socket, or leaving it as an empty string will use the default socket path.",
 						},
 
 						"protocol": schema.StringAttribute{
@@ -225,11 +225,9 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	// }
 	envName := os.Getenv("INCUS_REMOTE")
 	if envName != "" {
-		incusAddress := os.Getenv("INCUS_ADDR")
-
 		environmentRemote := provider_config.IncusProviderRemoteConfig{
 			Name:               envName,
-			Address:            incusAddress,
+			Addresses:          provider_config.RemoteAddresses(os.Getenv("INCUS_ADDR")),
 			Protocol:           os.Getenv("INCUS_PROTOCOL"),
 			CredentialsHelper:  os.Getenv("INCUS_OCI_CREDENTIALS_HELPER"),
 			AuthenticationType: os.Getenv("INCUS_AUTHENTICATION_TYPE"),
@@ -267,7 +265,7 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 		incusProviderRemoteConfig := provider_config.IncusProviderRemoteConfig{
 			Name:               remote.Name.ValueString(),
-			Address:            remote.Address.ValueString(),
+			Addresses:          provider_config.RemoteAddresses(remote.Address.ValueString()),
 			Protocol:           protocol,
 			CredentialsHelper:  remote.CredentialsHelper.ValueString(),
 			AuthenticationType: autheticationType,

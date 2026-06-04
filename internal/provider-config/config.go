@@ -2,17 +2,19 @@ package config
 
 import (
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
-	incus "github.com/lxc/incus/v6/client"
-	incus_api "github.com/lxc/incus/v6/shared/api"
-	incus_config "github.com/lxc/incus/v6/shared/cliconfig"
-	incus_tls "github.com/lxc/incus/v6/shared/tls"
-	incus_shared "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	incus_api "github.com/lxc/incus/v7/shared/api"
+	incus_config "github.com/lxc/incus/v7/shared/cliconfig"
+	incus_tls "github.com/lxc/incus/v7/shared/tls"
+	incus_shared "github.com/lxc/incus/v7/shared/util"
 
 	"github.com/lxc/terraform-provider-incus/internal/utils"
 )
@@ -24,7 +26,7 @@ const supportedIncusVersions = ">= 0.1"
 // in a user's Terraform schema/configuration.
 type IncusProviderRemoteConfig struct {
 	Name               string
-	Address            string
+	Addresses          []string
 	Protocol           string
 	CredentialsHelper  string
 	AuthenticationType string
@@ -177,7 +179,7 @@ func (p *IncusProviderConfig) server(remoteName string) (incus.Server, error) {
 	// If remote address is not provided or is only set to the prefix for
 	// Unix sockets (`unix://`) then determine which Incus directory
 	// contains a writable unix socket.
-	if incusRemoteConfig.Addr == "" || incusRemoteConfig.Addr == "unix://" {
+	if remoteUsesDefaultUnixSocket(incusRemoteConfig) {
 		incusDir, err := determineIncusDir()
 		if err != nil {
 			return nil, err
@@ -231,19 +233,24 @@ func (p *IncusProviderConfig) server(remoteName string) (incus.Server, error) {
 // createIncusServerClient will create an Incus client for a given remote.
 // The client is then stored in the incusProvider.Config collection of clients.
 func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemoteConfig) error {
-	if remote.Address == "" {
+	if len(remote.Addresses) == 0 {
 		return nil
 	}
 
-	parsedURL, err := url.Parse(remote.Address)
-	if err != nil {
-		return fmt.Errorf("Unable to parse address for remote %q: %v", remote.Name, err)
+	remoteAddresses := cleanRemoteAddresses(remote.Addresses)
+	if len(remoteAddresses) == 0 {
+		return nil
 	}
 
-	incusRemote := incus_config.Remote{Addr: remote.Address, AuthType: remote.AuthenticationType, Protocol: "incus"}
+	err := validateRemoteAddresses(remote.Name, remoteAddresses)
+	if err != nil {
+		return fmt.Errorf("Unable to parse addresses for remote %q: %v", remote.Name, err)
+	}
+
+	incusRemote := incus_config.Remote{Addrs: remoteAddresses, AuthType: remote.AuthenticationType, Protocol: "incus"}
 	p.setIncusConfigRemote(remote.Name, incusRemote)
 
-	if parsedURL.Scheme == "https" || parsedURL.Port() != "" {
+	if requiresRemoteCertificate(remoteAddresses) {
 		// If the Incusremote's certificate does not exist on the client...
 		p.mux.RLock()
 		certPath := p.incusConfig.ServerCertPath(remote.Name)
@@ -299,7 +306,7 @@ func (p *IncusProviderConfig) createIncusServerClient(remote IncusProviderRemote
 }
 
 func (p *IncusProviderConfig) createImageServerRemote(remote IncusProviderRemoteConfig) {
-	incusRemote := incus_config.Remote{Addr: remote.Address, Protocol: remote.Protocol, CredHelper: remote.CredentialsHelper, Public: remote.Public}
+	incusRemote := incus_config.Remote{Addrs: cleanRemoteAddresses(remote.Addresses), Protocol: remote.Protocol, CredHelper: remote.CredentialsHelper, Public: remote.Public}
 	p.setIncusConfigRemote(remote.Name, incusRemote)
 	p.SetRemote(remote, false)
 }
@@ -309,26 +316,90 @@ func (p *IncusProviderConfig) createImageServerRemote(remote IncusProviderRemote
 func (p *IncusProviderConfig) fetchIncusServerCertificate(remoteName string) error {
 	incusRemote := p.getIncusConfigRemote(remoteName)
 
-	certificate, err := incus_tls.GetRemoteCertificate(incusRemote.Addr, "terraform-provider-incus/1.0")
-	if err != nil {
+	if len(incusRemote.Addrs) == 0 {
+		return fmt.Errorf("Remote %q does not have an address", remoteName)
+	}
+
+	var certificateErrs []error
+	for _, remoteAddress := range incusRemote.Addrs {
+		certificate, err := incus_tls.GetRemoteCertificate(remoteAddress, "terraform-provider-incus/1.0")
+		if err != nil {
+			certificateErrs = append(certificateErrs, fmt.Errorf("%s: %w", remoteAddress, err))
+			continue
+		}
+
+		certDir := p.incusConfig.ConfigPath("servercerts")
+		err = os.MkdirAll(certDir, 0o750)
+		if err != nil {
+			return err
+		}
+
+		certPath := fmt.Sprintf("%s/%s.crt", certDir, remoteName)
+		certFile, err := os.Create(certPath)
+		if err != nil {
+			return err
+		}
+
+		err = pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw})
+		if closeErr := certFile.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+
 		return err
 	}
 
-	certDir := p.incusConfig.ConfigPath("servercerts")
-	err = os.MkdirAll(certDir, 0o750)
-	if err != nil {
-		return err
+	return errors.Join(certificateErrs...)
+}
+
+// RemoteAddresses converts a comma-separated Incus address string, such as INCUS_ADDR, into remote addresses.
+func RemoteAddresses(remoteAddress string) []string {
+	if strings.TrimSpace(remoteAddress) == "" {
+		return nil
 	}
 
-	certPath := fmt.Sprintf("%s/%s.crt", certDir, remoteName)
-	certFile, err := os.Create(certPath)
-	if err != nil {
-		return err
+	return cleanRemoteAddresses(incus_shared.SplitNTrimSpace(remoteAddress, ",", -1, true))
+}
+
+func cleanRemoteAddresses(parts []string) []string {
+	addresses := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			addresses = append(addresses, part)
+		}
 	}
 
-	defer certFile.Close()
+	return addresses
+}
 
-	return pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw})
+func validateRemoteAddresses(remoteName string, remoteAddresses []string) error {
+	for _, addr := range remoteAddresses {
+		_, err := url.Parse(addr)
+		if err != nil {
+			return fmt.Errorf("Unable to parse address for remote %q: %v", remoteName, err)
+		}
+	}
+
+	return nil
+}
+
+func requiresRemoteCertificate(remoteAddresses []string) bool {
+	for _, addr := range remoteAddresses {
+		parsedURL, err := url.Parse(addr)
+		if err != nil {
+			continue
+		}
+
+		if parsedURL.Scheme == "https" || parsedURL.Port() != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func remoteUsesDefaultUnixSocket(remote incus_config.Remote) bool {
+	return len(remote.Addrs) == 0 || (len(remote.Addrs) == 1 && remote.Addrs[0] == "unix://")
 }
 
 // verifyIncusVersion verifies whether the version of target IncusServer matches the

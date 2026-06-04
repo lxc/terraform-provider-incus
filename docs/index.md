@@ -45,7 +45,7 @@ provider "incus" {
 
   remote {
     name    = "incus-server-2"
-    address = "https://10.1.2.8"
+    address = "https://10.1.2.8,https://10.1.2.9"
     token   = "token"
   }
 }
@@ -77,7 +77,7 @@ The following arguments are supported:
 
 The `remote` block supports:
 
-* `address` - *Optional* - The address of the Incus remote.
+* `address` - *Optional* - The address of the Incus remote. Multiple addresses can be provided as a comma-separated string for clustered remotes. If omitted, the provider uses the remote definition from the local Incus config.
 
 * `name` - *Required* - The name of the Incus remote.
 
@@ -103,7 +103,7 @@ It is possible to define a single `remote` through environment variables.
 The required variables are:
 
 * `INCUS_REMOTE` - The name of the remote.
-* `INCUS_ADDR` - The address of the Incus remote.
+* `INCUS_ADDR` - The address of the Incus remote. Multiple addresses can be provided as a comma-separated string.
 * `INCUS_PROTOCOL` - The server protocol to use.
 * `INCUS_AUTHENTICATION_TYPE` - Server authentication type.
 * `INCUS_TOKEN` - The trust token of the Incus remote.
