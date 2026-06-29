@@ -46,6 +46,11 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: Set Incus config path
+        run: |
+          echo "INCUS_CONF=$RUNNER_TEMP/incus-config" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/incus-config"
+
       - name: Setup Incus from ${{ matrix.incus-version }} repository
         run: |
           sudo apt-get update
@@ -64,7 +69,7 @@ jobs:
           incus remote add localhost "${INCUS_TOKEN}"
 
           incus remote add docker https://docker.io --protocol=oci
-          # FIX: registries.conf must be in v2 format but is in v1 
+          # FIX: registries.conf must be in v2 format but is in v1
           sudo rm -rf /etc/containers/registries.conf
 
           incus config set core.storage_buckets_address="$( echo $INCUS_ADDR | awk -F[/:] '{print $4}'):$INCUS_STORAGE_BUCKETS_PORT"
