@@ -381,6 +381,8 @@ The following attributes are exported:
 
 * `status` - The status of the instance.
 
+* `interfaces` - Map of all instance network interfaces (excluding loopback device). The map key represents the name of the network device (from Incus configuration).
+
 ## Instance Network Access
 
 If your instance has multiple network interfaces, you can specify which one

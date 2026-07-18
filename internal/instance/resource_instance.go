@@ -60,10 +60,11 @@ type InstanceModel struct {
 	Architecture   types.String `tfsdk:"architecture"`
 
 	// Computed.
-	IPv4   types.String `tfsdk:"ipv4_address"`
-	IPv6   types.String `tfsdk:"ipv6_address"`
-	MAC    types.String `tfsdk:"mac_address"`
-	Status types.String `tfsdk:"status"`
+	IPv4       types.String `tfsdk:"ipv4_address"`
+	IPv6       types.String `tfsdk:"ipv6_address"`
+	MAC        types.String `tfsdk:"mac_address"`
+	Status     types.String `tfsdk:"status"`
+	Interfaces types.Map    `tfsdk:"interfaces"`
 }
 
 func (m InstanceModel) IsContainer() bool {
@@ -366,6 +367,52 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 
 			"status": schema.StringAttribute{
 				Computed: true,
+			},
+
+			"interfaces": schema.MapNestedAttribute{
+				Computed:    true,
+				Description: "Map of the instance network interfaces",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Computed:    true,
+							Description: "Name of the network interface within an instance",
+						},
+
+						"type": schema.StringAttribute{
+							Computed:    true,
+							Description: "Type of the network interface (link, local, global)",
+						},
+
+						"state": schema.StringAttribute{
+							Computed:    true,
+							Description: "State of the network interface (up, down)",
+						},
+
+						"ip_addresses": schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "IP addresses assigned to the interface",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Computed:    true,
+										Description: "IP address",
+									},
+
+									"family": schema.StringAttribute{
+										Computed:    true,
+										Description: "IP family (inet, inet6)",
+									},
+
+									"scope": schema.StringAttribute{
+										Computed:    true,
+										Description: "Scope (local, global, link)",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 
@@ -1369,6 +1416,9 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	devices, diags := common.ToDeviceSetTypePreservingNulls(ctx, instance.Devices, m.Devices)
 	respDiags.Append(diags...)
 
+	interfaces, diags := common.ToInterfaceMapType(ctx, instanceState.Network, instance.Config)
+	respDiags.Append(diags...)
+
 	if respDiags.HasError() {
 		return respDiags
 	}
@@ -1389,6 +1439,7 @@ func (r InstanceResource) SyncState(ctx context.Context, tfState *tfsdk.State, s
 	m.Devices = devices
 	m.Config = config
 	m.Architecture = types.StringValue(instance.Architecture)
+	m.Interfaces = interfaces
 
 	// Update "running" attribute based on the instance's current status.
 	// This way, terraform will detect the change if the current status

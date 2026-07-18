@@ -322,7 +322,7 @@ func initLogger(verbose bool, debug bool) {
 
 	slog.SetDefault(
 		slog.New(
-			tint.NewHandler(
+			tint.NewTextHandler(
 				os.Stderr,
 				&tint.Options{
 					Level:      level,

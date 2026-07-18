@@ -8,6 +8,9 @@ import (
 
 	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 
 	"github.com/lxc/terraform-provider-incus/internal/acctest"
 )
@@ -911,6 +914,38 @@ func TestAccInstance_accessInterface(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccInstance_accessInterface(networkName1, instanceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("name"),
+						knownvalue.StringExact("eth0"),
+					),
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("type"),
+						knownvalue.StringExact("broadcast"),
+					),
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("state"),
+						knownvalue.StringExact("up"),
+					),
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("ip_addresses").AtSliceIndex(0).AtMapKey("address"),
+						knownvalue.StringExact("10.150.19.200"),
+					),
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("ip_addresses").AtSliceIndex(0).AtMapKey("family"),
+						knownvalue.StringExact("inet"),
+					),
+					statecheck.ExpectKnownValue(
+						"incus_instance.instance1",
+						tfjsonpath.New("interfaces").AtMapKey("eth0").AtMapKey("ip_addresses").AtSliceIndex(0).AtMapKey("scope"),
+						knownvalue.StringExact("global"),
+					),
+				},
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_network.network1", "name", networkName1),
 					resource.TestCheckResourceAttr("incus_network.network1", "config.ipv4.address", "10.150.19.1/24"),
@@ -923,9 +958,8 @@ func TestAccInstance_accessInterface(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.type", "nic"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.nictype", "bridged"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.parent", networkName1),
-					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.hwaddr", "00:16:3e:39:7f:36"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "device.0.properties.ipv4.address", "10.150.19.200"),
-					resource.TestCheckResourceAttr("incus_instance.instance1", "mac_address", "00:16:3e:39:7f:36"),
+					resource.TestCheckResourceAttrSet("incus_instance.instance1", "mac_address"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "ipv4_address", "10.150.19.200"),
 					resource.TestCheckResourceAttrSet("incus_instance.instance1", "ipv6_address"),
 				),
@@ -2072,10 +2106,10 @@ resource "incus_instance" "instance1" {
     "user.access_interface" = "eth0"
   }
 
-	wait_for {
-		type = "ipv4"
-		nic = "eth0"
-	}
+  wait_for {
+    type = "ipv4"
+    nic = "eth0"
+  }
 
   device {
     name = "eth0"
@@ -2084,7 +2118,6 @@ resource "incus_instance" "instance1" {
     properties = {
       nictype        = "bridged"
       parent         = "${incus_network.network1.name}"
-      hwaddr         = "00:16:3e:39:7f:36"
       "ipv4.address" = "10.150.19.200"
     }
   }
