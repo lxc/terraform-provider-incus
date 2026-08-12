@@ -4,6 +4,7 @@ package provider
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/lxc/terraform-provider-incus/internal/certificate"
 	"github.com/lxc/terraform-provider-incus/internal/instance"
 	"github.com/lxc/terraform-provider-incus/internal/network"
 	"github.com/lxc/terraform-provider-incus/internal/profile"
@@ -13,6 +14,7 @@ import (
 
 func generatedDataSources() []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		certificate.NewCertificateDataSource,
 		instance.NewInstanceDataSource,
 		network.NewNetworkDataSource,
 		network.NewNetworkACLDataSource,

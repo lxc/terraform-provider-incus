@@ -6,6 +6,32 @@
 #
 # images:
 
+certificate:
+  package-name: certificate
+  object-name-property-name: fingerprint
+  incus-get-method: GetCertificate
+  has-no-project: true
+  has-no-status: true
+  has-no-config: true
+  extra-attributes:
+    - name: name
+      type: string
+      description: Certificate name.
+    - name: certificate
+      type: string
+      description: PEM-encoded X.509 certificate.
+    - name: type
+      type: string
+      description: Certificate usage type.
+    - name: restricted
+      type: bool
+      description: Whether the certificate is restricted to listed projects.
+    - name: projects
+      type: list
+      element-type:
+        type: string
+      description: Projects permitted to use the certificate.
+
 instance:
   description: |-
     See Incus instance [configuration reference](https://linuxcontainers.org/incus/docs/main/explanation/instance_config/) for more details.
