@@ -6,6 +6,7 @@ recursiv, so we only dive on level deep into lists ans maps to find objects.
 {{- $requireBasetypes := false }}
 {{- $extraAttributesHasDevice := false }}
 {{- $hasExtraAttributes := false }}
+{{- $requiresCommon := .HasConfig }}
 {{- range .ExtraAttributes }}
 	{{- if eq .Type "list" }}
 		{{- if eq .ElementType.Type "object" }}
@@ -22,6 +23,7 @@ recursiv, so we only dive on level deep into lists ans maps to find objects.
 		{{- $requireBasetypes = true }}
 	{{- else if eq .Type "_device" }}
 		{{- $extraAttributesHasDevice = true }}
+		{{- $requiresCommon = true }}
 		{{ continue }}
 	{{- end }}
 	{{- $hasExtraAttributes = true }}
@@ -105,8 +107,9 @@ import (
 	{{ if $requireBasetypes -}}
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	{{ end }}
-
+	{{ if $requiresCommon -}}
 	"github.com/lxc/terraform-provider-incus/internal/common"
+	{{ end -}}
 	"github.com/lxc/terraform-provider-incus/internal/errors"
 	provider_config "github.com/lxc/terraform-provider-incus/internal/provider-config"
 )
@@ -128,7 +131,9 @@ type {{ .Name | pascalcase }}DataSourceModel struct {
 	Remote      types.String `tfsdk:"remote"`
 
 	Description types.String `tfsdk:"description"`
-	Config      types.Map    `tfsdk:"config"`
+	{{- if .HasConfig }}
+		Config types.Map `tfsdk:"config"`
+	{{- end }}
 	{{- with .HasStatus }}
 		Status types.String `tfsdk:"status"`
 	{{- end }}
@@ -207,10 +212,13 @@ func (d *{{ .Name | pascalcase }}DataSource) Schema(ctx context.Context, req dat
 				Computed: true,
 			},
 
+			{{ if .HasConfig -}}
 			"config": schema.MapAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
 			},
+
+			{{ end -}}
 
 			{{ with .HasStatus -}}
 			"status": schema.StringAttribute{
@@ -341,11 +349,14 @@ func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datas
 		return
 	}
 
-	config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig({{ .Name | camelcase }}.Config), state.Config)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	{{- if .HasConfig }}
+
+		config, diags := common.ToConfigMapType(ctx, common.ToNullableConfig({{ .Name | camelcase }}.Config), state.Config)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	{{- end }}
 	{{- if $extraAttributesHasDevice }}
 
 	devices, diags := common.ToDeviceSetType(ctx, {{ .Name | camelcase }}.Devices)
@@ -379,7 +390,9 @@ func (d *{{ .Name | pascalcase }}DataSource) Read(ctx context.Context, req datas
 	{{- if .HasLocations }}
 		state.Locations = locations
 	{{- end }}
-	state.Config = config
+	{{- if .HasConfig }}
+		state.Config = config
+	{{- end }}
 
 	{{ if $hasExtraAttributes }}// Extra attributes.{{ end }}
 	{{- range .ExtraAttributes }}

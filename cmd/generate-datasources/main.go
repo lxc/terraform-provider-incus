@@ -119,6 +119,9 @@ type entityArgs struct {
 	// Inverted value from `has-no-status`.
 	HasStatus bool
 
+	// Inverted value from `has-no-config`.
+	HasConfig bool
+
 	// Value from `has-location`.
 	HasLocation bool
 
@@ -194,6 +197,7 @@ func main() {
 			HasProject:                     !entity.HasNoProject,
 			HasTarget:                      entity.HasTarget,
 			HasStatus:                      !entity.HasNoStatus,
+			HasConfig:                      !entity.HasNoConfig,
 			HasLocation:                    entity.HasLocation,
 			HasLocations:                   entity.HasLocations,
 			ExtraIDAttribute:               entity.ExtraIDAttribute,

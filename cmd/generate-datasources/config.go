@@ -59,6 +59,11 @@ type Entity struct {
 	// `has-no-status` needs to be set to `true`.
 	HasNoStatus bool `yaml:"has-no-status"`
 
+	// If a resource has no config attribute.
+	// Most resources do have a config attribute. If this is not the case,
+	// `has-no-config` needs to be set to `true`.
+	HasNoConfig bool `yaml:"has-no-config"`
+
 	// If a resource has a location, mutual exclusive with has-locations.
 	// Some resources are location aware. If this is the case for a resource,
 	// `has-location` needs to be set to `true`.
@@ -89,7 +94,7 @@ type Entity struct {
 	//   * `target`
 	//   * `remote`
 	//   * `description`
-	//   * `config`
+	//   * `config` (if `has-no-config` is not set to `true`)
 	//   * `status` (if `has-no-status` is not set to `true`)
 	//   * `location` (if `has-location` is set to `true`)
 	//   * `locations` (if `has-locations` is set to `true`)

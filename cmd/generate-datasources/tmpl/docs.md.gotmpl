@@ -74,9 +74,12 @@ output "{{ .Name }}_{{ .ObjectNamePropertyName }}" {
 {{ . | indent 2 }}
 {{- end }}
 
+{{- if .HasConfig }}
+
 * `config` - Map of key/value pairs of config settings.
 {{- with $.ExtraDescriptions.config }}
 {{ . | indent 2 }}
+{{- end }}
 {{- end }}
 {{- with .HasStatus }}
 
