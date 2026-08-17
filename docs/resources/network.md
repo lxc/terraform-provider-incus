@@ -150,25 +150,11 @@ the actual network:
 resource "incus_network" "my_network_node1" {
   name   = "my_network"
   target = "node1"
-  config = {
-    "ipv4.address" = "10.150.19.1/24"
-    "ipv4.nat"     = "true"
-    "ipv6.address" = "fd42:474b:622d:259d::1/64"
-    "ipv6.nat"     = "true"
-    "parent"       = "eth0"
-  }
 }
 
 resource "incus_network" "my_network_node2" {
   name   = "my_network"
   target = "node2"
-  config = {
-    "ipv4.address" = "10.150.19.1/24"
-    "ipv4.nat"     = "true"
-    "ipv6.address" = "fd42:474b:622d:259d::1/64"
-    "ipv6.nat"     = "true"
-    "parent"       = "eth1"
-  }
 }
 
 resource "incus_network" "my_network" {
