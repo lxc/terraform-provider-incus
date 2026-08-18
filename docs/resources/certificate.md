@@ -51,3 +51,29 @@ resource "incus_certificate" "prometheus" {
 The following attributes are exported:
 
 * `fingerprint` - The fingerprint of the certificate.
+
+### Import example
+
+Example using terraform import command:
+
+```shell
+terraform import incus_certificate.mycert <fingerprint>
+```
+
+Example using the import block (only available in Terraform v1.5.0 and later):
+
+```hcl
+resource "incus_certificate" "mycert" {
+  name       = "mycert"
+  certificate = <<EOT
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+EOT
+}
+
+import {
+  to = incus_certificate.mycert
+  id = "abcd123" # fingerprint
+}
+```
