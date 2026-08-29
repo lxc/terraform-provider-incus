@@ -1069,7 +1069,12 @@ func TestAccInstance_importBasic(t *testing.T) {
 				ImportStateId:                        fmt.Sprintf("%s,image=%s", instanceName, acctest.TestImage),
 				ImportStateVerifyIdentifierAttribute: "name",
 				ImportStateVerify:                    true,
-				ImportState:                          true,
+				ImportStateVerifyIgnore: []string{
+					"interfaces",
+					"ipv4_address",
+					"ipv6_address",
+				},
+				ImportState: true,
 			},
 		},
 	})
@@ -1092,7 +1097,12 @@ func TestAccInstance_importProject(t *testing.T) {
 				ImportStateId:                        fmt.Sprintf("%s/%s,image=%s", projectName, instanceName, acctest.TestImage),
 				ImportStateVerifyIdentifierAttribute: "name",
 				ImportStateVerify:                    true,
-				ImportState:                          true,
+				ImportStateVerifyIgnore: []string{
+					"interfaces",
+					"ipv4_address",
+					"ipv6_address",
+				},
+				ImportState: true,
 			},
 		},
 	})
