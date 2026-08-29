@@ -375,6 +375,16 @@ resource "incus_instance" "instance1" {
   name     = "%s"
   image    = "%s"
   profiles = ["default", incus_profile.profile1.name]
+
+  wait_for {
+    type = "ipv4"
+    nic  = "eth0"
+  }
+
+  wait_for {
+    type = "ipv6"
+    nic  = "eth0"
+  }
 }
 `, profileName, instanceName, acctest.TestImage)
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -33,6 +34,25 @@ type InstanceExecConfig struct {
 	Timeout     time.Duration
 	HasTimeout  bool
 	Trigger     string
+}
+
+type lockedBuffer struct {
+	mux    sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(data []byte) (int, error) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+
+	return b.buffer.Write(data)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+
+	return b.buffer.String()
 }
 
 func ToExecMap(ctx context.Context, execMap types.Map) (map[string]InstanceExecModel, diag.Diagnostics) {
@@ -175,8 +195,8 @@ func RunInstanceExec(ctx context.Context, server incus.InstanceServer, instanceN
 		execReq.Group = uint32(execConfig.GroupID)
 	}
 
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
+	stdout := &lockedBuffer{}
+	stderr := &lockedBuffer{}
 
 	execArgs := incus.InstanceExecArgs{
 		Stdout:   stdout,

@@ -355,6 +355,7 @@ func TestAccImage_sourceInstanceWithSnapshot(t *testing.T) {
 }
 
 func TestAccImage_sourceFileSplitImage(t *testing.T) {
+	projectName := petname.Generate(2, "-")
 	tmpDir := t.TempDir()
 	targetMetadata := filepath.Join(tmpDir, `alpine-edge.img`)
 	targetData := targetMetadata + ".root"
@@ -376,7 +377,7 @@ func TestAccImage_sourceFileSplitImage(t *testing.T) {
 		},
 		Steps: []resource.TestStep{
 			{
-				Config: testAccSourceFileSplitImage_exportImage(targetMetadata),
+				Config: testAccSourceFileSplitImage_exportImage(projectName, targetMetadata),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.remote", "images"),
 					resource.TestCheckResourceAttr("incus_image.img1", "source_image.name", "alpine/edge"),
@@ -389,7 +390,7 @@ func TestAccImage_sourceFileSplitImage(t *testing.T) {
 				Config: `#`, // Empty config to remove image. Comment is required, since empty string is seen as zero value.
 			},
 			{
-				Config: testAccSourceFileSplitImage_fromFile(targetData, targetMetadata, alias1, alias2),
+				Config: testAccSourceFileSplitImage_fromFile(projectName, targetData, targetMetadata, alias1, alias2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.data_path", targetData),
 					resource.TestCheckResourceAttr("incus_image.from_file", "source_file.metadata_path", targetMetadata),
@@ -757,9 +758,15 @@ resource "incus_image" "img1" {
 	`, projectName, instanceName, acctest.TestImage)
 }
 
-func testAccSourceFileSplitImage_exportImage(target string) string {
+func testAccSourceFileSplitImage_exportImage(projectName, target string) string {
 	return fmt.Sprintf(`
+resource "incus_project" "project1" {
+  name = "%[1]s"
+}
+
 resource "incus_image" "img1" {
+  project = incus_project.project1.name
+
   source_image = {
     remote       = "images"
     name         = "alpine/edge"
@@ -769,29 +776,35 @@ resource "incus_image" "img1" {
 
 resource "null_resource" "export_img1" {
   provisioner "local-exec" {
-    command = "incus image export ${incus_image.img1.fingerprint} %[1]s"
+    command = "incus image export --project ${incus_project.project1.name} ${incus_image.img1.fingerprint} %[2]s"
   }
 }
-`, target)
+`, projectName, target)
 }
 
-func testAccSourceFileSplitImage_fromFile(targetData, targetMetadata string, alias1, alias2 string) string {
+func testAccSourceFileSplitImage_fromFile(projectName, targetData, targetMetadata, alias1, alias2 string) string {
 	return fmt.Sprintf(`
-resource "incus_image" "from_file" {
-  source_file = {
-    data_path     = "%[1]s"
-    metadata_path = "%[2]s"
-  }
+resource "incus_project" "project1" {
+  name = "%[1]s"
+}
 
-  alias {
-    name = "%[3]s"
+resource "incus_image" "from_file" {
+  project = incus_project.project1.name
+
+  source_file = {
+    data_path     = "%[2]s"
+    metadata_path = "%[3]s"
   }
 
   alias {
     name = "%[4]s"
   }
+
+  alias {
+    name = "%[5]s"
+  }
 }
-`, targetData, targetMetadata, alias1, alias2)
+`, projectName, targetData, targetMetadata, alias1, alias2)
 }
 
 func testAccSourceFileUnifiedImage_exportImage(name, targetData string) string {

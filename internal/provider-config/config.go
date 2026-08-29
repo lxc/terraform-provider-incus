@@ -581,8 +581,8 @@ func (p *IncusProviderConfig) setIncusConfigRemote(name string, remote incus_con
 // getIncusConfigInstanceServer will retrieve an IncusInstanceServer client
 // in a conncurrent-safe way.
 func (p *IncusProviderConfig) getIncusConfigInstanceServer(remoteName string) (incus.InstanceServer, error) {
-	p.mux.RLock()
-	defer p.mux.RUnlock()
+	p.mux.Lock()
+	defer p.mux.Unlock()
 
 	server, err := p.incusConfig.GetInstanceServer(remoteName)
 	if err != nil {
@@ -602,7 +602,7 @@ func (p *IncusProviderConfig) getIncusConfigInstanceServer(remoteName string) (i
 // getIncusConfigImageServer will retrieve an IncusImageServer client
 // in a conncurrent-safe way.
 func (p *IncusProviderConfig) getIncusConfigImageServer(remoteName string) (incus.ImageServer, error) {
-	p.mux.RLock()
-	defer p.mux.RUnlock()
+	p.mux.Lock()
+	defer p.mux.Unlock()
 	return p.incusConfig.GetImageServer(remoteName)
 }

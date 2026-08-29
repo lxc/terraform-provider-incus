@@ -1069,7 +1069,12 @@ func TestAccInstance_importBasic(t *testing.T) {
 				ImportStateId:                        fmt.Sprintf("%s,image=%s", instanceName, acctest.TestImage),
 				ImportStateVerifyIdentifierAttribute: "name",
 				ImportStateVerify:                    true,
-				ImportState:                          true,
+				ImportStateVerifyIgnore: []string{
+					"interfaces",
+					"ipv4_address",
+					"ipv6_address",
+				},
+				ImportState: true,
 			},
 		},
 	})
@@ -1092,7 +1097,12 @@ func TestAccInstance_importProject(t *testing.T) {
 				ImportStateId:                        fmt.Sprintf("%s/%s,image=%s", projectName, instanceName, acctest.TestImage),
 				ImportStateVerifyIdentifierAttribute: "name",
 				ImportStateVerify:                    true,
-				ImportState:                          true,
+				ImportStateVerifyIgnore: []string{
+					"interfaces",
+					"ipv4_address",
+					"ipv6_address",
+				},
+				ImportState: true,
 			},
 		},
 	})
@@ -1679,6 +1689,18 @@ func testAccInstance_started(name string, instanceType string) string {
 		config = `"security.secureboot" = false`
 	}
 
+	waitForNetworkConfig := `
+  wait_for {
+    type = "ipv4"
+    nic  = "eth0"
+  }
+
+  wait_for {
+    type = "ipv6"
+    nic  = "eth0"
+  }
+`
+
 	var waitForAgentConfig string
 	if instanceType == "virtual-machine" {
 		waitForAgentConfig = `wait_for { type = "agent" }`
@@ -1696,8 +1718,9 @@ resource "incus_instance" "instance1" {
   }
 
 	%s
+  %s
 }
-	`, name, acctest.TestImage, instanceType, config, waitForAgentConfig)
+	`, name, acctest.TestImage, instanceType, config, waitForNetworkConfig, waitForAgentConfig)
 }
 
 func testAccInstance_stopped(name string, instanceType string) string {
