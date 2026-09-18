@@ -2,6 +2,7 @@ package network_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	petname "github.com/dustinkirkland/golang-petname"
@@ -306,6 +307,29 @@ func TestAccNetwork_importProject(t *testing.T) {
 				ImportState:                          true,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
+			},
+		},
+	})
+}
+
+func TestAccNetwork_emptyConfigValue(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+resource "incus_network" "test" {
+  name = "tftest0"
+  type = "bridge"
+  config = {
+    "user.foo" = ""
+  }
+}
+`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+				ExpectError:        regexp.MustCompile(`Attribute config\["user.foo"\] string length must be at least 1`),
 			},
 		},
 	})
