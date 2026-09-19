@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -123,6 +124,9 @@ func (r NetworkResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
 			},
 		},
 	}
@@ -179,7 +183,7 @@ func validateIncusConfig(ctx context.Context, plan NetworkModel) diag.Diagnostic
 		if found && value == "auto" {
 			diags.AddError(
 				"Invalid Configuration",
-				fmt.Sprintf(`%q cannot be set to "auto"`, key),
+				fmt.Sprintf(`%q cannot be set to "auto", as this would cause an unavoidable inconsistency due to Incus replacing the value with the auto-generated network; leave it out of the config instead and it will default to "auto"`, key),
 			)
 		}
 	}
