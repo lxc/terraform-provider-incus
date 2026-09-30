@@ -295,3 +295,8 @@ import {
   * `ipv6.nat`
   * `ipv6.address`
   * `volatile.*`
+* The `config` keys `ipv4.address` and `ipv6.address` cannot be explicitly set to `"auto"`. These
+  values don't remain in the configuration; their presence will cause Incus to generate a network
+  and replace the `"auto"` in the configuration with that network, causing an inconsistency with
+  the state. To set these keys to `"auto"`, remove them from the `config` to take advantage of the
+  above behavior.

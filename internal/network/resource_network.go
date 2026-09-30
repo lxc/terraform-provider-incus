@@ -183,7 +183,7 @@ func validateIncusConfig(ctx context.Context, plan NetworkModel) diag.Diagnostic
 		if found && value == "auto" {
 			diags.AddError(
 				"Invalid Configuration",
-				fmt.Sprintf(`%q cannot be set to "auto"`, key),
+				fmt.Sprintf(`%q = "auto" would cause inconsistency (see docs); leave unset to default to auto`, key),
 			)
 		}
 	}
