@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1
 	github.com/hashicorp/terraform-plugin-testing v1.16.0
 	github.com/lmittmann/tint v1.2.0
-	github.com/lxc/incus/v7 v7.5.0
+	github.com/lxc/incus/v7 v7.5.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
