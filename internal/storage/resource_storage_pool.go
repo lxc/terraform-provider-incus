@@ -390,6 +390,7 @@ func (StoragePoolModel) ComputedKeys(driver string) []string {
 	case "lvmcluster":
 		keys = []string{
 			"source",
+			"size",
 			"lvm.vg_name",
 		}
 	case "btrfs":

@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	"github.com/lxc/terraform-provider-incus/internal/common"
 	"github.com/lxc/terraform-provider-incus/internal/storage"
 )
 
@@ -57,6 +58,22 @@ func TestStoragePoolPreserveUserConfig_NonZFSDriver(t *testing.T) {
 
 	if got := *stateConfig["source"]; got != apiSource {
 		t.Fatalf("expected source %q, got %q", apiSource, got)
+	}
+}
+
+func TestStoragePoolStripConfig_LVMClusterSize(t *testing.T) {
+	model := storage.StoragePoolModel{
+		Config: types.MapValueMust(types.StringType, map[string]attr.Value{}),
+	}
+
+	apiConfig := map[string]string{
+		"size": "10733223936",
+	}
+
+	stateConfig := common.StripConfig(apiConfig, model.Config, model.ComputedKeys("lvmcluster"))
+
+	if _, ok := stateConfig["size"]; ok {
+		t.Fatal("expected computed size to be stripped from the state")
 	}
 }
 

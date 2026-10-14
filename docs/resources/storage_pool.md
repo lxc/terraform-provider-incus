@@ -120,9 +120,10 @@ import {
     * `lvm.vg_name`
     * `lvm.thinpool_name`
   * driver == `lvmcluster`
-      * `size`
-      * `lvm.vg_name`
-  * driver == `zfs`
+    * `size`
+    * `source`
+    * `lvm.vg_name`
+  * driver == `btrfs`
     * `size`
     * `source`
   * driver == `linstor`
