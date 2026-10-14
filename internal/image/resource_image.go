@@ -61,6 +61,7 @@ type SourceImageModel struct {
 	Type         types.String `tfsdk:"type"`
 	Architecture types.String `tfsdk:"architecture"`
 	CopyAliases  types.Bool   `tfsdk:"copy_aliases"`
+	Mode         types.String `tfsdk:"mode"`
 }
 
 type SourceInstanceModel struct {
@@ -132,6 +133,15 @@ func (r ImageResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 						},
 						Validators: []validator.String{
 							stringvalidator.OneOf("container", "virtual-machine"),
+						},
+					},
+					"mode": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString("pull"),
+						Description: "The transfer mode to use when transferring the image, one of \"push\", \"pull\", or \"relay\".",
+						Validators: []validator.String{
+							stringvalidator.OneOf("push", "pull", "relay"),
 						},
 					},
 					"architecture": schema.StringAttribute{
@@ -460,6 +470,7 @@ func (r ImageResource) SyncState(ctx context.Context, tfState *tfsdk.State, serv
 				"remote":       sourceImageModel.Remote,
 				"name":         sourceImageModel.Name,
 				"type":         sourceImageModel.Type,
+				"mode":         sourceImageModel.Mode,
 				"architecture": sourceImageModel.Architecture,
 				"copy_aliases": sourceImageModel.CopyAliases,
 			})
@@ -655,6 +666,7 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 	image := sourceImageModel.Name.ValueString()
 	imageType := sourceImageModel.Type.ValueString()
 	imageRemote := sourceImageModel.Remote.ValueString()
+	imageMode := sourceImageModel.Mode.ValueString()
 	imageServer, err := r.provider.ImageServer(imageRemote)
 	if err != nil {
 		resp.Diagnostics.Append(errors.NewImageServerError(err))
@@ -737,6 +749,7 @@ func (r ImageResource) createImageFromSourceImage(ctx context.Context, resp *res
 	args := incus.ImageCopyArgs{
 		Aliases: imageAliases,
 		Public:  false,
+		Mode:    imageMode,
 	}
 
 	opCopy, err := server.CopyImage(imageServer, *imageInfo, &args)
