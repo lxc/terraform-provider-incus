@@ -74,7 +74,7 @@ func (p *IncusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 		Attributes: map[string]schema.Attribute{
 			"config_dir": schema.StringAttribute{
 				Optional:    true,
-				Description: "The directory to look for existing Incus configuration. (default = $HOME/.config/incus)",
+				Description: "The directory to look for existing Incus configuration. Overrides INCUS_CONF. Defaults to the platform-specific configuration directory, falling back to existing configuration in $HOME/.config/incus",
 			},
 
 			"generate_client_certificates": schema.BoolAttribute{
@@ -158,16 +158,11 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	resp.Diagnostics.Append(diags...)
 
 	// Determine Incus configuration directory.
-	configDir := data.ConfigDir.ValueString()
-	if configDir == "" {
-		configDir = "$HOME/.config/incus"
-
-		v, ok := os.LookupEnv("INCUS_CONF")
-		if ok {
-			configDir = v
-		}
+	configDir, err := resolveConfigDir(data.ConfigDir.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to determine Incus configuration directory", err.Error())
+		return
 	}
-	configDir = os.ExpandEnv(configDir)
 
 	// Try to load config.yml from determined configDir. If there's
 	// an error loading config.yml, default config will be used.
@@ -283,6 +278,40 @@ func (p *IncusProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	resp.ResourceData = incusProvider
 	resp.DataSourceData = incusProvider
+}
+
+func resolveConfigDir(explicitDir string) (string, error) {
+	if explicitDir != "" {
+		return os.ExpandEnv(explicitDir), nil
+	}
+
+	envDir := os.Getenv("INCUS_CONF")
+	if envDir != "" {
+		return os.ExpandEnv(envDir), nil
+	}
+
+	baseDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	defaultDir := filepath.Join(baseDir, "incus")
+	if incus_shared.PathExists(filepath.Join(defaultDir, "config.yml")) {
+		return defaultDir, nil
+	}
+
+	// Read legacy configuration in place without migrating it.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return defaultDir, nil
+	}
+
+	legacyDir := filepath.Join(homeDir, ".config", "incus")
+	if incus_shared.PathExists(filepath.Join(legacyDir, "config.yml")) {
+		return legacyDir, nil
+	}
+
+	return defaultDir, nil
 }
 
 func (p *IncusProvider) Resources(_ context.Context) []func() resource.Resource {
