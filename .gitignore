@@ -4,6 +4,7 @@ dist/
 
 .idea/
 .vscode/
+.zed/
 
 terraform-provider-incus
 terraform-provider-incus.iml

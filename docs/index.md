@@ -7,7 +7,7 @@ Use Terraform to manage Incus resources.
 This provider connects to the Incus daemon over local Unix socket or HTTPS.
 
 It makes use of the [Incus client library](https://github.com/lxc/incus), which
-currently looks in `~/.config/incus` for `client.crt`
+looks in the selected Incus configuration directory for `client.crt`
 and `client.key` files to authenticate against the Incus daemon.
 
 To generate these files and store them in the Incus client config, follow these
@@ -58,9 +58,12 @@ The following arguments are supported:
 * `remote` - *Optional* - Specifies an Incus remote (Incus server) to connect
   to. See the `remote` reference below for details.
 
-* `config_dir` - *Optional* - The directory to look for existing Incus
-  configuration. This can also be set with the `INCUS_CONF`
-  Environment variable. Defaults to `$HOME/.config/incus`
+* `config_dir` - _Optional_ - The directory to look for existing Incus
+  configuration. Takes precedence over the `INCUS_CONF` environment variable.
+  When neither is nonempty, defaults to `$XDG_CONFIG_HOME/incus` (or
+  `$HOME/.config/incus`) on Linux, `$HOME/Library/Application Support/incus`
+  on macOS, and `%AppData%\incus` on Windows. If the default directory has no
+  `config.yml`, an existing `$HOME/.config/incus/config.yml` is used in place.
 
 * `generate_client_certificates` - *Optional* - Automatically generate the Incus
   client certificate if it does not exist. Valid values are `true` and `false`.
