@@ -202,6 +202,7 @@ func (d *ImageDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	image, _, err := server.GetImage(fingerprint)
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to retrieve image by fingerprint %q", fingerprint), err.Error())
+		return
 	}
 
 	aliases := make([]string, 0, len(image.Aliases))
