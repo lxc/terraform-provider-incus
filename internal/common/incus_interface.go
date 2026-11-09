@@ -51,12 +51,14 @@ func ToInterfaceMapType(ctx context.Context, instanceNetworks map[string]api.Ins
 		// Find volatile entry that contains mac address of the network
 		// interface. If addresses match, extract the config name of the
 		// interface from the config key (volatile.<if_name>.hwaddr).
+		// <if_name> can contain alnum, '.', '_' and '-'
 		cfgInfName := ""
 		for k, v := range instanceConfig {
-			if v == net.Hwaddr {
-				cfgInfName = strings.SplitN(k, ".", 3)[1]
-				break
+			if v != net.Hwaddr || !strings.HasPrefix(k, "volatile.") || !strings.HasSuffix(k, ".hwaddr") {
+				continue
 			}
+			cfgInfName = strings.TrimSuffix(strings.TrimPrefix(k, "volatile."), ".hwaddr")
+			break
 		}
 
 		if cfgInfName == "" {
