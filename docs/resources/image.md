@@ -76,6 +76,8 @@ The `source_image` block supports:
 * `copy_aliases` - *Optional* - Whether to copy the aliases of the image from
   the remote. Valid values are `true` and `false`.
 
+* `mode` - *Optional* - Transfer mode to use when transferring the image. Must be one of `push`, `pull`, or `relay`. Defaults to `pull`.
+
 The `source_instance` block supports:
 
 * `name` - **Required** - Name of the source instance.
