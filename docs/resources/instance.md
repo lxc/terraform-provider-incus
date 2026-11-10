@@ -273,6 +273,8 @@ resource "incus_instance" "instance1" {
 
 * `running` - *Optional* - Boolean indicating whether the instance should be started (running). Defaults to `true`.
 
+* `timeouts` - *Optional* - Time limits for the operations. See reference below.
+
 * `wait_for` - *Optional* - WaitFor definition. See reference below.
   If `running` is set to false or instance is already running (on update), this value has no effect.
 
@@ -365,6 +367,20 @@ The `exec` block supports:
 Exec entries run in lexicographic key order, after any file uploads. Exec commands
 require the instance to be running. For virtual machines, an Incus agent must be
 available before exec commands can run.
+
+The `timeouts` block supports:
+
+* `create` - *Optional* - Time limit for the creation of the instance, e.g. `30m`.
+
+* `update` - *Optional* - Time limit for the update of the instance.
+
+* `delete` - *Optional* - Time limit for the deletion of the instance.
+
+If a value is not set, the operation has no time limit, and each wait for the
+instance to start, stop or get ready stops after 3 minutes. If a value is set, it
+applies to the full operation, and replaces the limit of 3 minutes. A copy of an
+image or instance that is in progress does not stop at the limit: the operation
+fails after the copy.
 
 ## Attribute Reference
 
