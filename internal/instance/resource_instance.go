@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
@@ -40,24 +41,25 @@ import (
 )
 
 type InstanceModel struct {
-	Name           types.String `tfsdk:"name"`
-	Description    types.String `tfsdk:"description"`
-	Type           types.String `tfsdk:"type"`
-	Image          types.String `tfsdk:"image"`
-	Ephemeral      types.Bool   `tfsdk:"ephemeral"`
-	Running        types.Bool   `tfsdk:"running"`
-	WaitForConfigs types.Set    `tfsdk:"wait_for"`
-	Profiles       types.List   `tfsdk:"profiles"`
-	Devices        types.Set    `tfsdk:"device"`
-	Files          types.Set    `tfsdk:"file"`
-	Exec           types.Map    `tfsdk:"exec"`
-	Config         types.Map    `tfsdk:"config"`
-	Project        types.String `tfsdk:"project"`
-	Remote         types.String `tfsdk:"remote"`
-	Target         types.String `tfsdk:"target"`
-	SourceInstance types.Object `tfsdk:"source_instance"`
-	SourceFile     types.String `tfsdk:"source_file"`
-	Architecture   types.String `tfsdk:"architecture"`
+	Name           types.String   `tfsdk:"name"`
+	Description    types.String   `tfsdk:"description"`
+	Type           types.String   `tfsdk:"type"`
+	Image          types.String   `tfsdk:"image"`
+	Ephemeral      types.Bool     `tfsdk:"ephemeral"`
+	Running        types.Bool     `tfsdk:"running"`
+	WaitForConfigs types.Set      `tfsdk:"wait_for"`
+	Profiles       types.List     `tfsdk:"profiles"`
+	Devices        types.Set      `tfsdk:"device"`
+	Files          types.Set      `tfsdk:"file"`
+	Exec           types.Map      `tfsdk:"exec"`
+	Config         types.Map      `tfsdk:"config"`
+	Project        types.String   `tfsdk:"project"`
+	Remote         types.String   `tfsdk:"remote"`
+	Target         types.String   `tfsdk:"target"`
+	SourceInstance types.Object   `tfsdk:"source_instance"`
+	SourceFile     types.String   `tfsdk:"source_file"`
+	Architecture   types.String   `tfsdk:"architecture"`
+	Timeouts       timeouts.Value `tfsdk:"timeouts"`
 
 	// Computed.
 	IPv4       types.String `tfsdk:"ipv4_address"`
@@ -125,7 +127,21 @@ func (r InstanceResource) Metadata(_ context.Context, req resource.MetadataReque
 	resp.TypeName = fmt.Sprintf("%s_instance", req.ProviderTypeName)
 }
 
-func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+// timeoutsBlock returns the timeouts block with a description.
+func timeoutsBlock(ctx context.Context) schema.Block {
+	block := timeouts.Block(ctx, timeouts.Opts{Create: true, Update: true, Delete: true})
+
+	nested, ok := block.(schema.SingleNestedBlock)
+	if !ok {
+		return block
+	}
+
+	nested.Description = "Time limits for the create, update and delete operations"
+
+	return nested
+}
+
+func (r InstanceResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
@@ -417,6 +433,8 @@ func (r InstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 
 		Blocks: map[string]schema.Block{
+			"timeouts": timeoutsBlock(ctx),
+
 			"wait_for": schema.SetNestedBlock{
 				Description: "Wait for instance to be ready",
 				NestedObject: schema.NestedBlockObject{
@@ -779,6 +797,15 @@ func (r InstanceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	timeout, diags := plan.Timeouts.Create(ctx, 0)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := utils.ContextWithTimeout(ctx, timeout)
+	defer cancel()
+
 	remote := plan.Remote.ValueString()
 	project := plan.Project.ValueString()
 	target := plan.Target.ValueString()
@@ -943,6 +970,15 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	timeout, diags := plan.Timeouts.Update(ctx, 0)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := utils.ContextWithTimeout(ctx, timeout)
+	defer cancel()
+
 	remote := plan.Remote.ValueString()
 	project := plan.Project.ValueString()
 	target := plan.Target.ValueString()
@@ -1008,7 +1044,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 	opUpdate, err := server.UpdateInstance(instanceName, newInstance, etag)
 	if err == nil {
 		// Wait for the instance to be updated.
-		err = opUpdate.Wait()
+		err = opUpdate.WaitContext(ctx)
 	}
 
 	if err != nil {
@@ -1166,7 +1202,7 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 		opUpdate, err = server.RenameInstance(instanceName, renameInstance)
 		if err == nil {
 			// Wait for the instance to be updated.
-			err = opUpdate.Wait()
+			err = opUpdate.WaitContext(ctx)
 		}
 
 		if err != nil {
@@ -1280,6 +1316,15 @@ func (r InstanceResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	timeout, diags := state.Timeouts.Delete(ctx, 0)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := utils.ContextWithTimeout(ctx, timeout)
+	defer cancel()
 
 	remote := state.Remote.ValueString()
 	project := state.Project.ValueString()
@@ -1580,7 +1625,7 @@ func (r InstanceResource) createInstanceFromSourceFile(ctx context.Context, serv
 
 	op, err := server.CreateInstanceFromBackup(createArgs)
 	if err == nil {
-		err = op.Wait()
+		err = op.WaitContext(ctx)
 	}
 
 	if err != nil {
@@ -1776,7 +1821,7 @@ func (r InstanceResource) createInstanceWithoutImage(ctx context.Context, server
 	// Initialize the instance. Instance will not be running after this call.
 	if err == nil {
 		// Wait for the instance to be created.
-		err = opCreate.Wait()
+		err = opCreate.WaitContext(ctx)
 	}
 
 	if err != nil {
@@ -2161,7 +2206,7 @@ func waitForState(ctx context.Context, refreshFunc retry.StateRefreshFunc, targe
 	stateRefreshConf := &retry.StateChangeConf{
 		Refresh:    refreshFunc,
 		Target:     targets,
-		Timeout:    3 * time.Minute,
+		Timeout:    time.Duration(utils.ContextTimeout(ctx, 3*time.Minute)) * time.Second,
 		MinTimeout: 2 * time.Second, // Timeout increases: 2, 4, 8, 10, 10, ...
 		Delay:      2 * time.Second, // Delay before the first check/refresh.
 	}
