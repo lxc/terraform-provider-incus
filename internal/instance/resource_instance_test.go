@@ -37,6 +37,24 @@ func TestAccInstance_basic(t *testing.T) {
 	})
 }
 
+func TestAccInstance_timeouts(t *testing.T) {
+	instanceName := petname.Generate(2, "-")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInstance_timeouts(instanceName, acctest.TestImage),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttr("incus_instance.instance1", "timeouts.create", "10m"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccInstance_noImage(t *testing.T) {
 	instanceName := petname.Generate(2, "-")
 
@@ -1558,6 +1576,19 @@ func testAccInstance_basic(name string, image string) string {
 resource "incus_instance" "instance1" {
   name  = "%s"
   image = "%s"
+}
+	`, name, image)
+}
+
+func testAccInstance_timeouts(name string, image string) string {
+	return fmt.Sprintf(`
+resource "incus_instance" "instance1" {
+  name  = "%s"
+  image = "%s"
+
+  timeouts {
+    create = "10m"
+  }
 }
 	`, name, image)
 }

@@ -28,6 +28,15 @@ func CheckVersion(versionString string, versionConstraint string) (bool, error) 
 	return constraint.Check(ver), nil
 }
 
+// ContextWithTimeout returns ctx with the given timeout. A zero timeout sets no deadline.
+func ContextWithTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout == 0 {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, timeout)
+}
+
 // ContextTimeout converts context deadline into timeout (time until it runs
 // out). If the context has no deadline, the default timeout is returned.
 func ContextTimeout(ctx context.Context, def time.Duration) int {
