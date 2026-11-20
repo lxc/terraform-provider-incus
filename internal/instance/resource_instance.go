@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -257,9 +258,6 @@ func (r InstanceResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"target": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplaceIfConfigured(),
-				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -952,6 +950,7 @@ func (r InstanceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the instance in the following order:
 // - Stop the instance if its desired state is stopped.
 // - Update configuration (config, devices, profiles).
+// - Move the instance if it is not on the targeted cluster member.
 // - Start the instance if its desired state is running.
 // - Upload files.
 // - Run exec commands.
@@ -1050,6 +1049,21 @@ func (r InstanceResource) Update(ctx context.Context, req resource.UpdateRequest
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("Failed to update instance %q", instance.Name), err.Error())
 		return
+	}
+
+	// Move the instance if it is not on the targeted cluster member.
+	move, err := instanceNeedsMove(server, instance.Location, target)
+	if err != nil {
+		resp.Diagnostics.AddError(fmt.Sprintf("Failed to check location of instance %q", instanceName), err.Error())
+		return
+	}
+
+	if move {
+		diag := moveInstance(ctx, server, instanceName)
+		if diag != nil {
+			resp.Diagnostics.Append(diag)
+			return
+		}
 	}
 
 	// Start after applying configuration changes if the desired state is running.
@@ -1999,6 +2013,63 @@ func stopInstance(ctx context.Context, server incus.InstanceServer, instanceName
 	}
 
 	return true, nil
+}
+
+// instanceNeedsMove reports whether the instance location does not match the target.
+func instanceNeedsMove(server incus.InstanceServer, location string, target string) (bool, error) {
+	if target == "" || !server.IsClustered() {
+		return false, nil
+	}
+
+	groupName, isGroup := strings.CutPrefix(target, "@")
+	if !isGroup {
+		return location != target, nil
+	}
+
+	// Any member of a cluster group satisfies a group target.
+	group, _, err := server.UseTarget("").GetClusterGroup(groupName)
+	if err != nil {
+		return false, err
+	}
+
+	return !slices.Contains(group.Members, location), nil
+}
+
+// moveInstance moves an instance to the cluster member or group targeted by the server.
+func moveInstance(ctx context.Context, server incus.InstanceServer, instanceName string) diag.Diagnostic {
+	instanceState, _, err := server.GetInstanceState(instanceName)
+	if err != nil {
+		return diag.NewErrorDiagnostic(fmt.Sprintf("Failed to retrieve state of instance %q", instanceName), err.Error())
+	}
+
+	// Stop instance if it's running (required for a move between cluster members).
+	if !isInstanceStopped(*instanceState) {
+		_, diag := stopInstance(ctx, server, instanceName, false)
+		if diag != nil {
+			return diag
+		}
+	}
+
+	moveReq := api.InstancePost{
+		Name:      instanceName,
+		Migration: true,
+	}
+
+	op, err := server.MigrateInstance(instanceName, moveReq)
+	if err == nil {
+		err = op.WaitContext(ctx)
+	}
+
+	if err != nil {
+		return diag.NewErrorDiagnostic(fmt.Sprintf("Failed to move instance %q", instanceName), err.Error())
+	}
+
+	// Restore instance to its original running state if it was operational before the move.
+	if isInstanceOperational(*instanceState) {
+		return startInstance(ctx, server, instanceName)
+	}
+
+	return nil
 }
 
 // waitFor waits for the instance with the given name to reach the desired
