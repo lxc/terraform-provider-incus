@@ -296,7 +296,9 @@ resource "incus_instance" "instance1" {
 * `remote` - *Optional* - The remote in which the resource will be created. If
   not provided, the provider's default remote will be used.
 
-* `target` - *Optional* - Specify a target node in a cluster.
+* `target` - *Optional* - Specify a target node in a cluster. Changing it moves
+  the instance to the new target. A running instance is stopped for the move
+  and started again afterwards.
 
 * `architecture` - *Optional* - The instance architecture (e.g. x86_64, aarch64). See [Architectures](https://linuxcontainers.org/incus/docs/main/architectures/) for all possible values.
 
