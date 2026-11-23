@@ -9,6 +9,7 @@ import (
 	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 
@@ -991,6 +992,8 @@ func TestAccInstance_target(t *testing.T) {
 
 	clusterMemberNames := make(map[string]struct{}, 10) // It is unlikely, that acceptance tests are executed against clusters > 10 nodes.
 
+	var target1, target2 string
+
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.PreCheck(t)
@@ -1009,11 +1012,39 @@ func TestAccInstance_target(t *testing.T) {
 					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
 					resource.TestCheckResourceAttr("incus_instance.instance1", "image", acctest.TestImage),
 					acctest.TestCheckResourceAttrInLookup("incus_instance.instance1", "target", clusterMemberNames),
+					resource.TestCheckResourceAttrWith("incus_instance.instance1", "target", func(value string) error {
+						target1 = value
+						return nil
+					}),
 
 					resource.TestCheckResourceAttr("incus_instance.instance2", "name", fmt.Sprintf("%s-2", instanceName)),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "status", "Running"),
 					resource.TestCheckResourceAttr("incus_instance.instance2", "image", acctest.TestImage),
 					acctest.TestCheckResourceAttrInLookup("incus_instance.instance2", "target", clusterMemberNames),
+					resource.TestCheckResourceAttrWith("incus_instance.instance2", "target", func(value string) error {
+						target2 = value
+						return nil
+					}),
+				),
+			},
+			{
+				// Swapping the targets moves the instances in-place rather than replacing them.
+				SkipFunc: func() (bool, error) {
+					return len(clusterMemberNames) < 2, nil
+				},
+				Config: testAccInstance_targetSwapped(instanceName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("incus_instance.instance1", plancheck.ResourceActionUpdate),
+						plancheck.ExpectResourceAction("incus_instance.instance2", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("incus_instance.instance1", "status", "Running"),
+					resource.TestCheckResourceAttrPtr("incus_instance.instance1", "target", &target2),
+
+					resource.TestCheckResourceAttr("incus_instance.instance2", "status", "Running"),
+					resource.TestCheckResourceAttrPtr("incus_instance.instance2", "target", &target1),
 				),
 			},
 		},
@@ -2199,6 +2230,28 @@ resource "incus_instance" "instance2" {
   // Using "length(local.member_names) - 1" instead of "-1", since negative indices
   // are broken in tofu 1.10.5: https://github.com/hashicorp/terraform/issues/36369
   target = element(tolist(local.member_names), length(local.member_names) - 1) // last cluster member
+}
+	`, name, acctest.TestImage)
+}
+
+func testAccInstance_targetSwapped(name string) string {
+	return fmt.Sprintf(`
+data "incus_cluster" "test" {}
+
+locals {
+  member_names = [ for k, v in data.incus_cluster.test.members : k ]
+}
+
+resource "incus_instance" "instance1" {
+  name   = "%[1]s-1"
+  image  = "%[2]s"
+  target = reverse(local.member_names)[0] // last cluster member
+}
+
+resource "incus_instance" "instance2" {
+  name   = "%[1]s-2"
+  image  = "%[2]s"
+  target = local.member_names[0] // first cluster member
 }
 	`, name, acctest.TestImage)
 }
