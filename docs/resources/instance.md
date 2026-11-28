@@ -348,6 +348,9 @@ The `file` block supports:
 * `create_directories` - *Optional* - Whether to create the directories leading
   to the target if they do not exist.
 
+* `directory_mode` - *Optional* - The octal permissions of the directories created
+  by `create_directories`, must be quoted. Defaults to `0755`.
+
 The `exec` block supports:
 
 * `command` - **Required** - Command to execute as a list of strings where the first

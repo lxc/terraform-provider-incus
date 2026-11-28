@@ -65,13 +65,13 @@ resource "incus_network_forward" "my_forward" {
 
 The network forward port supports:
 
-* `protocol` - **Required** - Protocol for the port(s) (`tcp` or `udp`). If not set then `tcp` will be used.
+* `protocol` - *Optional* - Protocol for the port(s) (`tcp` or `udp`). Defaults to `tcp`.
 
 * `listen_port` - **Required** - Listen port(s) (e.g. `80,90-100`)
 
 * `target_address` - **Required** - IP address to forward to
 
-* `target_port` - *Optional* - T arget port(s) (e.g. `70,80-90` or `90`), same as listen_port if empty
+* `target_port` - **Required** - Target port(s) (e.g. `70,80-90` or `90`)
 
 * `description` - *Optional* - Description of port(s)
 
@@ -96,7 +96,7 @@ Example using the import block (only available in Terraform v1.5.0 and later):
 
 ```hcl
 resource "incus_network_forward" "forward1" {
-  network_name   = "my-network"
+  network        = "my-network"
   listen_address = "10.150.19.10"
   project        = "proj"
 }
