@@ -54,7 +54,7 @@ resource "incus_network_forward" "my_forward" {
 * `description` - *Optional* - Description of the network forward.
 
 * `config` - *Optional* - Map of key/value pairs of
-  [network forward config settings](hhttps://linuxcontainers.org/incus/docs/main/howto/network_forwards/).
+  [network forward config settings](https://linuxcontainers.org/incus/docs/main/howto/network_forwards/).
 
 * `project` - *Optional* - Name of the project where the network forward will be created.
 
