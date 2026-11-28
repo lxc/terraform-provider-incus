@@ -1,7 +1,7 @@
 # incus_network_peer
 
 Provides information about an Incus network peer.
-See Incus network peer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_peers/https://linuxcontainers.org/incus/docs/main/howto/network_ovn_peers/) for more details.
+See Incus network peer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_ovn_peers/) for more details.
 
 ## Example Usage
 
