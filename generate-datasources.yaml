@@ -277,7 +277,7 @@ network_load_balancer:
 
 network_peer:
   description: |-
-    See Incus network peer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_peers/https://linuxcontainers.org/incus/docs/main/howto/network_ovn_peers/) for more details.
+    See Incus network peer [configuration reference](https://linuxcontainers.org/incus/docs/main/howto/network_ovn_peers/) for more details.
   package-name: network
   parent: network
   incus-get-method: GetNetworkPeer

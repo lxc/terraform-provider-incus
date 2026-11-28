@@ -58,7 +58,7 @@ resource "incus_network_acl" "acl1" {
 * `description` - *Optional* - Description of the network ACL.
 
 * `config` - *Optional* - Map of key/value pairs of
-  [network ACL config settings](hhttps://linuxcontainers.org/incus/docs/main/howto/network_acls/).
+  [network ACL config settings](https://linuxcontainers.org/incus/docs/main/howto/network_acls/).
 
 * `project` - *Optional* - Name of the project where the network ACL will be created.
 

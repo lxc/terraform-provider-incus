@@ -51,19 +51,19 @@ resource "incus_network_peer" "lan1_lan0"{
 
 ## Argument Reference
 
-* `name` - **required** - Name of the network peering on the local network
+* `name` - **Required** - Name of the network peering on the local network
 
 * `network` - **Required** - Name of the local network.
 
-* `target_network` - **required** - Which network to create a peering with (required at create time for local peers)
+* `target_network` - *Optional* - Which network to create a peering with (required at create time for local peers)
 
-* `description`  - *Optional* - Description of the network peering
+* `description` - *Optional* - Description of the network peering
 
 * `config` - *Optional* - Configuration options as key/value pairs (only user.* custom keys supported)
 
-* `type` - *Optional* - Type of network peering
+* `type` - *Optional* - Type of network peering. Can be `local` or `remote`. Defaults to `local`.
 
-* `target_intergration` - *Optional* - Name of the integration (required at create time for remote peers)
+* `target_integration` - *Optional* - Name of the integration (required at create time for remote peers)
 
 * `target_project` - *Optional* - Which project the target network exists in (required at create time for local peers)
 
@@ -74,4 +74,6 @@ resource "incus_network_peer" "lan1_lan0"{
 
 ## Attribute Reference
 
-No attributes are exported.
+The following attributes are exported:
+
+* `status` - The status of the network peering.
